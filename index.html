@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Mars Rover Math Demo</title>
+    <style>
+      html, body {
+        margin: 0;
+        width: 100%;
+        min-height: 100%;
+        background: #0f172a;
+        overflow: auto;
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      }
+      .app {
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        min-height: 100dvh;
+      }
+      .left {
+        border-right: 1px solid #1e293b;
+        padding: 12px;
+        color: #e2e8f0;
+        overflow: auto;
+      }
+      .right {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        min-width: 0;
+      }
+      textarea, input, button, select {
+        width: 100%;
+        margin: 4px 0;
+        box-sizing: border-box;
+        border-radius: 8px;
+        border: 1px solid #334155;
+        background: #0b1220;
+        color: #e2e8f0;
+        padding: 8px;
+      }
+      .controls { display: grid; grid-template-columns: repeat(2,1fr); gap: 6px; }
+      #game-container {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        min-height: 320px;
+        max-height: calc(100dvh - 140px);
+      }
+      #state-panel { padding: 10px; color: #e2e8f0; border-bottom: 1px solid #1e293b; }
+      #trace {
+        max-height: 220px;
+        overflow: auto;
+        padding-left: 18px;
+      }
+      #trace li.warning { color: #facc15; }
+      #errors { color: #f87171; padding-left: 18px; }
+      @media (max-width: 900px) {
+        .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+        .left { max-height: none; border-right: 0; border-bottom: 1px solid #1e293b; }
+        #game-container {
+          max-height: none;
+          min-height: 52dvh;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <section class="left">
+        <h2>Mars Rover Math v1</h2>
+        <h3>Modo online (MVP)</h3>
+        <input id="player-name" placeholder="Tu nombre" />
+        <input id="room-code" placeholder="Código de sala" />
+        <div class="controls">
+          <button id="btn-create-room">Crear sala</button>
+          <button id="btn-join-room">Unirse</button>
+        </div>
+        <button id="btn-start-game" disabled>Iniciar partida (host)</button>
+        <p id="room-info-text">ONLINE_MODE apagado.</p>
+        <h3>Modo ejercicio</h3>
+        <p>Objetivo: ubicá el rover en la coordenada pedida.</p>
+        <p id="challenge-text"><strong>Objetivo:</strong> (0,0)</p>
+        <p>Hacé click en la celda del tablero para elegir la posición del rover.</p>
+        <div class="controls">
+          <button id="btn-play">Comprobar</button>
+        </div>
+        <p id="score-text"><strong>Puntaje:</strong> 0</p>
+        <p id="feedback-text"></p>
+      </section>
+      <section class="right">
+        <div id="state-panel">
+          <strong>Estado actual:</strong>
+          <span data-role="state">S=(0,0,N)</span>
+          <br />
+          <strong>Cuenta regresiva:</strong>
+          <span data-role="countdown">—</span>
+          <br />
+          <strong>Ranking:</strong>
+          <ol data-role="ranking"></ol>
+          <p data-role="late-alert" style="color: #facc15"></p>
+        </div>
+        <div id="game-container"></div>
+      </section>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+    <script type="module" src="./game.js"></script>
+  </body>
+  </html>

@@ -1,0 +1,14 @@
+{
+  "name": "game-cartesiano",
+  "version": "1.0.0",
+  "description": "Mars Rover Math - juego educativo de plano cartesiano",
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test",
+    "test:watch": "node --test --watch"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

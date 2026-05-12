@@ -1,0 +1,33 @@
+# Archive Report
+
+**Change**: mars-rover-math-demo  
+**Artifact Store Mode**: engram  
+**Archive Date**: 2026-05-08
+
+## Closure Decision
+Archived as **PASS WITH WARNINGS**. No critical issues remain; implementation and verification artifacts show completion and traceable evidence.
+
+## Engram Traceability (required artifacts)
+- `sdd/mars-rover-math-demo/proposal` → observation **#792**
+- `sdd/mars-rover-math-demo/spec` → observation **#793**
+- `sdd/mars-rover-math-demo/design` → observation **#794**
+- `sdd/mars-rover-math-demo/tasks` → observation **#795**
+- `sdd/mars-rover-math-demo/verify-report` → observation **#799**
+
+## Additional Supporting Artifact
+- `sdd/mars-rover-math-demo/apply-progress` → observation **#796**
+
+## Archive Validation
+- Engram artifacts retrieved with full content via `mem_get_observation` ✅
+- Required artifact IDs recorded in this report ✅
+- Verify verdict checked: **PASS WITH WARNINGS**; **CRITICAL = None** ✅
+- Task completion confirmed in verification report (27/27 complete) ✅
+
+## Warnings Carried Forward
+1. Build/type-check gate not configured.
+2. Coverage not available.
+3. Three scenarios remain partial in compliance matrix.
+4. Minor design deviation remains for overlap warning representation.
+
+## Final Status
+SDD cycle for `mars-rover-math-demo` is formally closed in engram mode. Source artifacts remain in Engram as system of record; this archive report provides closure and audit traceability.

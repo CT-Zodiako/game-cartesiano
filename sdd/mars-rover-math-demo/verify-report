@@ -1,0 +1,101 @@
+# Verification Report
+
+**Change**: mars-rover-math-demo  
+**Version**: v1  
+**Mode**: Standard (strict_tdd=false)
+
+---
+
+### Completeness
+| Metric | Value |
+|---|---:|
+| Tasks total | 27 |
+| Tasks complete | 27 |
+| Tasks incomplete | 0 |
+
+Resultado: checklist completo en `sdd/mars-rover-math-demo/tasks` (incluye remediación Fase 6).
+
+---
+
+### Build & Tests Execution
+
+**Build/Type-check**: ⚠️ Not available (no `package.json`, `Makefile`, `pyproject.toml` ni comando de build detectado).
+
+**Tests**: ✅ 10 passed / ❌ 0 failed / ⚠️ 0 skipped  
+Comando ejecutado: `node --test`
+
+Evidencia:
+- `tests 10`, `pass 10`, `fail 0`, `skipped 0`, exit code 0.
+
+**Coverage**: ➖ Not available
+
+---
+
+### Spec Compliance Matrix (behavioral)
+
+| Requirement | Scenario | Test | Result |
+|---|---|---|---|
+| Cartesian bounded plateau with origin | Valid coordinate inside plateau | `tests/application/simulateScenario.test.js > parser valid and invalid` | ⚠️ PARTIAL |
+| Cartesian bounded plateau with origin | Invalid coordinate outside plateau | `tests/domain/rover/rover.test.js > invalid coordinate outside plateau throws explicit boundary error` | ✅ COMPLIANT |
+| Rover state model | Orientation domain enforcement | `tests/domain/rover/rover.test.js > orientation domain enforcement rejects unsupported orientation` | ✅ COMPLIANT |
+| L/R/M transformations | Rotation without translation | `tests/domain/rover/rover.test.js > turn left/right keeps position and rotates orientation` | ✅ COMPLIANT |
+| L/R/M transformations | Forward movement by orientation | `tests/domain/rover/rover.test.js > PRD sequence LMLMLMLMM => (1,3,N)` | ⚠️ PARTIAL |
+| Sequential function composition | Command fold over sequence | `tests/domain/rover/rover.test.js > PRD sequence LMLMLMLMM => (1,3,N)` | ✅ COMPLIANT |
+| Scenario parsing and validation | Parse valid multi-rover input | `tests/application/simulateScenario.test.js > parser valid and invalid` | ✅ COMPLIANT |
+| Scenario parsing and validation | Reject malformed rover block | `tests/application/simulateScenario.test.js > parser rejects malformed rover block with missing command line` | ✅ COMPLIANT |
+| Boundary policy v1 (immobility + warning) | Out-of-bounds forward command | `tests/domain/rover/rover.test.js > move forward out of bounds stays still and warns` | ✅ COMPLIANT |
+| Sequential processing of multiple rovers | Ordered multi-rover execution | `tests/application/simulateScenario.test.js > global timeline order is A then B` | ✅ COMPLIANT |
+| Step trace generation | Trace completeness | `tests/domain/rover/rover.test.js > PRD sequence LMLMLMLMM => (1,3,N)` | ⚠️ PARTIAL |
+| Current state and trajectory visualization | State panel synchronization | `tests/ui/statePanel.test.js > state panel synchronization updates current state text` | ✅ COMPLIANT |
+| Visible warning feedback | Boundary warning surfaced | `tests/ui/statePanel.test.js > boundary warning is surfaced in trace row marker and text` | ✅ COMPLIANT |
+
+**Compliance summary**: 10/13 escenarios COMPLIANT, 3/13 PARTIAL, 0/13 FAILING, 0/13 UNTESTED.
+
+---
+
+### Correctness (Static — Structural Evidence)
+| Requirement | Status | Evidence |
+|---|---|---|
+| Plateau acotado + origen | ✅ Implemented | `validateState` valida enteros y rango (`src/domain/rover/validate.js:16-33`). |
+| Modelo `S=(x,y,θ)` | ✅ Implemented | Orientación validada contra dominio (`src/domain/rover/validate.js:21-25`). |
+| Transformaciones puras L/R/M | ✅ Implemented | `turnLeft/turnRight/moveForward` retornan nuevo estado (`src/domain/rover/transform.js:7-32`). |
+| Composición secuencial | ✅ Implemented | Fold izquierda→derecha con traza (`src/domain/rover/execute.js:24-37`). |
+| Parser + errores accionables | ✅ Implemented | Códigos parser + `line`/`roverIndex` (`src/application/parser.js:3-9`, `55-113`). |
+| Simulación multi-rover ordenada | ✅ Implemented | `rovers.forEach` secuencial y `timeline` lineal (`src/application/simulateScenario.js:16-73`). |
+| Warning visible en timeline | ✅ Implemented | `appendTrace` agrega clase `warning` y texto de código (`src/ui/statePanel.js:24-29`). |
+
+---
+
+### Coherence (Design)
+| Decision | Followed? | Notes |
+|---|---|---|
+| Core puro + adaptador Phaser | ✅ Yes | Dominio desacoplado de UI; adapter/scene en `src/ui/phaser/*`. |
+| Frontera: inmovilidad + warning | ✅ Yes | `moveForward` conserva estado y emite `MOVE_OUT_OF_BOUNDS`. |
+| Superposición permitida v1 | ✅ Yes | `ROVER_OVERLAP_ALLOWED` sin bloquear simulación. |
+| Parser estructurado | ✅ Yes | `parseScenario` devuelve `errors[]` tipados con línea e índice. |
+| Contrato START/END overlap como eventos explícitos | ⚠️ Deviated | Warning de overlap se adjunta al último frame o frame sintético (`src/application/simulateScenario.js:52-67`). |
+
+---
+
+### Issues Found
+
+**CRITICAL**
+- None.
+
+**WARNING**
+1. No hay build/type-check configurable en el proyecto, por lo que esa verificación sigue pendiente.
+2. Cobertura no disponible.
+3. Tres escenarios con cobertura parcial (coordenada válida explícita, movimiento elemental M por orientación, completitud de traza con escenario dedicado de 5 pasos).
+4. Persistencia de desvío menor de diseño en warning de overlap (adjunto a frame, no eventos START/END explícitos).
+
+**SUGGESTION**
+1. Agregar test unitario dedicado para `M(S)` en celda válida (ej. `(1,1,N) -> (1,2,N)`).
+2. Agregar test dedicado para completitud de traza con exactamente 5 comandos y verificación por-step (`prev/cmd/next`).
+3. Definir un comando de quality gate mínimo (por ejemplo script `test`/`lint`) para futura verificación automatizada de build/calidad.
+
+---
+
+### Verdict
+**PASS WITH WARNINGS**
+
+Re-verificación post-remediación: los hallazgos CRITICAL previos quedaron cerrados con evidencia de ejecución (`node --test`: 10/10), sin escenarios UNTESTED ni FAILING en la matriz actual.
