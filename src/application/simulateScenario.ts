@@ -1,20 +1,62 @@
+import type { RoverState, Plateau, Warning } from '../domain/rover/types.js';
 import { executeRoverSequence } from '../domain/rover/execute.js';
-import { WARNING_CODES, createWarning } from '../domain/rover/types.js';
+import { createWarning, WARNING_CODES } from '../domain/rover/types.js';
 
-function posKey(s) {
+export interface RoverInput {
+  id: string;
+  initial: RoverState;
+  commands: string;
+}
+
+export interface ScenarioInput {
+  plateau: Plateau;
+  rovers: RoverInput[];
+}
+
+function posKey(s: RoverState): string {
   return `${s.x},${s.y}`;
 }
 
-export function simulateScenario(input) {
+export interface TimelineFrame {
+  frameIndex: number;
+  roverId: string;
+  roverIndex: number;
+  stepIndex: number;
+  cmd: string;
+  prev: RoverState;
+  next: RoverState;
+  warning?: Warning;
+}
+
+export interface RoverTrace {
+  roverId: string;
+  trace: TimelineFrame[];
+  warnings: Warning[];
+}
+
+export interface FinalRoverState {
+  roverId: string;
+  state: RoverState;
+}
+
+export interface ScenarioResult {
+  finals: FinalRoverState[];
+  roverTraces: RoverTrace[];
+  timeline: TimelineFrame[];
+}
+
+export function simulateScenario(input: ScenarioInput): ScenarioResult {
   const { plateau, rovers } = input;
-  const finals = [];
-  const roverTraces = [];
-  const timeline = [];
-  const occupied = new Set();
+  const finals: FinalRoverState[] = [];
+  const roverTraces: RoverTrace[] = [];
+  const timeline: TimelineFrame[] = [];
+  const occupied = new Set<string>();
   let frameIndex = 0;
 
-  rovers.forEach((rover, roverIndex) => {
-    const roverWarnings = [];
+  for (let rIdx = 0; rIdx < rovers.length; rIdx += 1) {
+    const rover = rovers[rIdx];
+    const roverWarnings: Warning[] = [];
+
     if (occupied.has(posKey(rover.initial))) {
       roverWarnings.push(
         createWarning(WARNING_CODES.ROVER_OVERLAP_ALLOWED, `Rover ${rover.id} inicia sobre una celda ocupada`, {
@@ -25,12 +67,12 @@ export function simulateScenario(input) {
     }
 
     const { finalState, trace } = executeRoverSequence(rover.initial, rover.commands, plateau);
-    const remappedTrace = trace.map((step, stepIndex) => {
-      const row = {
+    const remappedTrace: TimelineFrame[] = trace.map((step, stepIdx) => {
+      const row: TimelineFrame = {
         frameIndex,
         roverId: rover.id,
-        roverIndex,
-        stepIndex,
+        roverIndex: rIdx,
+        stepIndex: stepIdx,
         cmd: step.cmd,
         prev: step.prev,
         next: step.next,
@@ -53,15 +95,17 @@ export function simulateScenario(input) {
       const attachTo = remappedTrace.length > 0 ? remappedTrace[remappedTrace.length - 1] : {
         frameIndex,
         roverId: rover.id,
-        roverIndex,
+        roverIndex: rIdx,
         stepIndex: 0,
         cmd: 'M',
         prev: rover.initial,
         next: finalState,
       };
-      attachTo.warning = attachTo.warning ?? roverWarnings[0];
+      if (!attachTo.warning) {
+        attachTo.warning = roverWarnings[0];
+      }
       if (remappedTrace.length === 0) {
-        remappedTrace.push(attachTo);
+        remappedTrace.push(attachTo as TimelineFrame);
         frameIndex += 1;
       }
     }
@@ -70,7 +114,7 @@ export function simulateScenario(input) {
     finals.push({ roverId: rover.id, state: finalState });
     roverTraces.push({ roverId: rover.id, trace: remappedTrace, warnings: roverWarnings });
     timeline.push(...remappedTrace);
-  });
+  }
 
   return { finals, roverTraces, timeline };
 }

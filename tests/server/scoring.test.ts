@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { computeScoreFromElapsedMs } from '../../server/scoring.js';
+import { computeScoreFromElapsedMs } from '../../src/domain/scoring/index.ts';
 
 test('scoring matches MVP examples', () => {
   assert.equal(computeScoreFromElapsedMs(2_000), 910);
