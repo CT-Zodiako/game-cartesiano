@@ -7,8 +7,8 @@ export const COMMANDS = ['L', 'R', 'M'] as const;
 export type Command = (typeof COMMANDS)[number];
 
 export interface Plateau {
-  xMax: number;
-  yMax: number;
+  xMax: number; // positive limit, range: [-xMax, xMax]
+  yMax: number; // positive limit, range: [-yMax, yMax]
 }
 
 export interface RoverState {

@@ -67,8 +67,8 @@ export class WSClient {
     this.ws.send(JSON.stringify({ type, reqId: `c-${++this.reqSeq}`, ...payload }));
   }
 
-  createRoom(playerName: string): void {
-    this.send('CREATE_ROOM', { playerName });
+  createRoom(playerName: string, config?: { maxPlayers?: number; rounds?: number; roundDurationMs?: number; maxX?: number; maxY?: number }): void {
+    this.send('CREATE_ROOM', { playerName, config: config ?? {} });
   }
 
   joinRoom(playerName: string, roomCode: string): void {
@@ -125,4 +125,8 @@ export function handleError(ws: WSClient, cb: (code: string, message: string) =>
     const e = event as { code: string; message: string };
     cb(e.code, e.message);
   });
+}
+
+export function handleGameEnded(ws: WSClient, cb: (event: GameEndedEvent) => void): void {
+  ws.on('GAME_ENDED', (event) => cb(event as GameEndedEvent));
 }

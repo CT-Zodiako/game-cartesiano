@@ -39,6 +39,13 @@ export interface C2SCreateRoom {
   type: 'CREATE_ROOM';
   reqId: string;
   playerName: string;
+  config?: {
+    maxPlayers?: number;
+    rounds?: number;
+    roundDurationMs?: number;
+    maxX?: number;
+    maxY?: number;
+  };
 }
 
 export interface C2SJoinRoom {
@@ -90,6 +97,7 @@ export interface RoomSnapshotEvent {
   eventId: string;
   serverTsMs: number;
   roomState: RoomState;
+  yourPlayerId?: string;
 }
 
 export interface RoundStartedEvent {

@@ -29,3 +29,6 @@ build/
 # Temporary
 /tmp/
 *.tmp
+
+# Agent infrastructure
+.atl/

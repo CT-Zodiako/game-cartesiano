@@ -1,4 +1,4 @@
-import type { Plateau, RoverState } from '@domain/rover/types.ts';
+import type { Plateau } from '@domain/rover/types.ts';
 
 export interface PixelCoord {
   px: number;
@@ -8,6 +8,8 @@ export interface PixelCoord {
   margin: number;
   w: number;
   h: number;
+  centerX: number;
+  centerY: number;
 }
 
 export interface BoardConfig {
@@ -19,19 +21,36 @@ export interface BoardConfig {
 
 const DEFAULT_MARGIN = 30;
 
+// Four quadrants: origin (0,0) at center, x goes [-xMax, xMax], y goes [-yMax, yMax]
 export function cellToPixel(x: number, y: number, plateau: Plateau, width: number, height: number, margin = DEFAULT_MARGIN): PixelCoord {
   const w = width - margin * 2;
   const h = height - margin * 2;
-  const stepX = plateau.xMax > 0 ? w / plateau.xMax : w;
-  const stepY = plateau.yMax > 0 ? h / plateau.yMax : h;
+  const stepX = plateau.xMax > 0 ? w / (plateau.xMax * 2) : w;
+  const stepY = plateau.yMax > 0 ? h / (plateau.yMax * 2) : h;
+
+  // Center of the board
+  const centerX = margin + w / 2;
+  const centerY = margin + h / 2;
+
   return {
-    px: margin + stepX * x,
-    py: height - (margin + stepY * y),
+    px: centerX + x * stepX,
+    py: centerY - y * stepY,
     stepX,
     stepY,
     margin,
     w,
     h,
+    centerX,
+    centerY,
+  };
+}
+
+// Get the center of a cell (not the vertex)
+export function cellCenter(x: number, y: number, plateau: Plateau, width: number, height: number, margin = DEFAULT_MARGIN): { cx: number; cy: number } {
+  const coord = cellToPixel(x, y, plateau, width, height, margin);
+  return {
+    cx: coord.px + coord.stepX / 2,
+    cy: coord.py - coord.stepY / 2,
   };
 }
 
@@ -46,21 +65,24 @@ export function pixelToCell(
 ): { x: number; y: number } | null {
   const w = width - margin * 2;
   const h = height - margin * 2;
+  const centerX = margin + w / 2;
+  const centerY = margin + h / 2;
 
   const minX = margin;
   const maxX = margin + w;
-  const minY = height - (margin + h);
-  const maxY = height - margin;
+  const minY = margin;
+  const maxY = margin + h;
 
   if (px < minX || px > maxX || py < minY || py > maxY) return null;
 
-  const stepX = plateau.xMax > 0 ? w / plateau.xMax : w;
-  const stepY = plateau.yMax > 0 ? h / plateau.yMax : h;
+  const stepX = plateau.xMax > 0 ? w / (plateau.xMax * 2) : w;
+  const stepY = plateau.yMax > 0 ? h / (plateau.yMax * 2) : h;
 
-  const gx = Math.round((px - margin) / stepX);
-  const gy = Math.round((height - margin - py) / stepY);
-  const x = Math.max(0, Math.min(gx, plateau.xMax));
-  const y = Math.max(0, Math.min(gy, plateau.yMax));
+  const gx = Math.round((px - centerX) / stepX);
+  const gy = Math.round((centerY - py) / stepY);
+
+  const x = Math.max(-plateau.xMax, Math.min(gx, plateau.xMax));
+  const y = Math.max(-plateau.yMax, Math.min(gy, plateau.yMax));
 
   // Accept click only near vertex intersection
   const vertex = cellToPixel(x, y, plateau, width, height, margin);
@@ -71,39 +93,4 @@ export function pixelToCell(
   if (distance > vertexHitRadius) return null;
 
   return { x, y };
-}
-
-export function drawGrid(
-  gfx: Phaser.GameObjects.Graphics,
-  plateau: Plateau,
-  width: number,
-  height: number,
-  margin = DEFAULT_MARGIN,
-): Phaser.GameObjects.Text[] {
-  const w = width - margin * 2;
-  const h = height - margin * 2;
-  const stepX = plateau.xMax > 0 ? w / plateau.xMax : w;
-  const stepY = plateau.yMax > 0 ? h / plateau.yMax : h;
-
-  const axisTexts: Phaser.GameObjects.Text[] = [];
-
-  gfx.fillStyle(0x0f172a, 1);
-  gfx.fillRect(0, 0, width, height);
-  gfx.lineStyle(1, 0x334155, 0.9);
-
-  for (let i = 0; i <= plateau.xMax; i += 1) {
-    const x = margin + i * stepX;
-    gfx.lineBetween(x, height - margin, x, height - (margin + h));
-  }
-  for (let j = 0; j <= plateau.yMax; j += 1) {
-    const y = height - (margin + j * stepY);
-    gfx.lineBetween(margin, y, margin + w, y);
-  }
-
-  // Main axes (darker)
-  gfx.lineStyle(2, 0x94a3b8, 1);
-  gfx.lineBetween(margin, height - margin, margin + w, height - margin); // X
-  gfx.lineBetween(margin, height - margin, margin, height - (margin + h)); // Y
-
-  return axisTexts;
 }
