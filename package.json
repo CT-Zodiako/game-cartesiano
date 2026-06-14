@@ -8,8 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "tsx server.ts",
-    "test": "tsx --test tests/ui/statePanel.test.ts",
-    "test:watch": "tsx --test --watch tests/ui/statePanel.test.ts"
+    "test": "tsx --test tests/ui/*.test.ts tests/server/*.test.ts",
+    "test:watch": "tsx --test --watch tests/ui/*.test.ts tests/server/*.test.ts"
   },
   "dependencies": {
     "ws": "^8.18.0"

@@ -118,6 +118,9 @@ export interface ClaimAckEvent {
   status: 'ACCEPTED' | 'REJECTED';
   reason: string | null;
   scoreDelta: number;
+  pointsEarned: number;
+  totalScore: number;
+  rankingVersion: number;
 }
 
 export interface LateAlertEvent {
@@ -196,15 +199,25 @@ export interface PlayerInfo {
   lastAcceptedAtMs?: number | null;
 }
 
+export interface RoomConfig {
+  maxPlayers: number;
+  rounds: number;
+  roundDurationMs: number;
+  maxX: number;
+  maxY: number;
+}
+
 export interface RoomState {
   roomId: string;
   roomCode: string;
   hostId: string;
   status: RoomStatus;
+  config: RoomConfig;
   currentRound: number;
   roundDeadlineMs: number | null;
   rankingVersion: number;
   players: PlayerInfo[];
+  ranking: RankingEntry[];
 }
 
 export interface RankingEntry {

@@ -1,5 +1,7 @@
 # Especificación Técnica — Game Cartesiano
 
+**Propósito/estado:** arquitectura documentada contra el estado actual del PRD; `server.js` es el servidor vigente y la migración a `server.ts` queda como deuda técnica.
+
 ## ST-1: Visión General del Sistema
 
 ```
@@ -21,8 +23,8 @@
 └────────────────────────┬────────────────────────────────┘
                          │ WebSocket / HTTP
 ┌────────────────────────▼────────────────────────────────┐
-│               SERVIDOR (Node.js — server.ts)            │
-│  TypeScript: WebSocket + HTTP estático                  │
+│               SERVIDOR (Node.js — server.js)            │
+│  JavaScript: WebSocket + HTTP estático                  │
 │  Sala, rondas, scoring y ranking manejados inline        │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -41,7 +43,8 @@
 ### Backend
 - **Node.js** — runtime
 - **ws ^8** — librería WebSocket server
-- **TypeScript** — `server.ts`
+- **JavaScript** — `server.js` actual
+- **TypeScript** — objetivo futuro: migrar `server.js` a `server.ts`
 
 ---
 
@@ -50,7 +53,7 @@
 ```
 game_cartesiano/
 ├── index.html              # Entry point + UI completa
-├── server.ts               # Servidor WebSocket + HTTP estático (TypeScript)
+├── server.js               # Servidor WebSocket + HTTP estático actual (JavaScript)
 ├── vite.config.ts          # Config Vite
 ├── tsconfig.json           # TypeScript strict
 ├── package.json
@@ -140,7 +143,7 @@ Al terminar la partida, aparece un modal con:
 └────────────────────────────────────────────────────────┘
 ```
 - **Tu elección** (cyan): se actualiza al hacer click en el tablero
-- **Objetivo** (rosa): la coordenada a encontrar
+- **Objetivo** (cyan/acento): la coordenada a encontrar
 - **Tiempo** (amarillo): countdown de la ronda
 
 ---

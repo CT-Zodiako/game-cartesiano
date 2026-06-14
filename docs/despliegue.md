@@ -1,5 +1,7 @@
 # Despliegue — Game Cartesiano Online
 
+**Propósito/estado:** guía de despliegue para el estado actual del PRD; el entrypoint vigente del servidor es `server.js`.
+
 ## Visión General
 
 El servidor de Game Cartesiano tiene dos responsabilidades:
@@ -22,7 +24,7 @@ Usuario → https://mi-dominio.com
 
 ```
 $50–80 USD/mes → servidor con 2GB RAM, 1 CPU
-SSH → git clone → npm install → node server/index.js
+SSH → git clone → npm install → node server.js
 ```
 
 **Pros:** Control total, costo predecible
@@ -70,7 +72,7 @@ After=network.target
 Type=simple
 User=www-data
 WorkingDirectory=/opt/game-cartesiano
-ExecStart=/usr/bin/node server/index.js
+ExecStart=/usr/bin/node server.js
 Restart=on-failure
 RestartSec=5
 Environment=PORT=8080
@@ -86,14 +88,14 @@ WantedBy=multi-user.target
 
 #### Render.com (recomendado)
 - Free tier disponible
-- Despliegue desde GitHub con `node server/index.js`
+- Despliegue desde GitHub con `node server.js`
 - WebSocket soportado en paid tiers ($7+/mes)
 
 ```
 1. Conectar repo en GitHub
 2. Render → New → Web Service
 3. Build command: npm install
-4. Start command: node server/index.js
+4. Start command: node server.js
 5. Plan: Starter → $7/mes (WebSocket included)
 ```
 
@@ -105,7 +107,7 @@ WantedBy=multi-user.target
 ```
 1. railway init
 2. railway add
-3. npm install → node server/index.js
+3. npm install → node server.js
 ```
 
 #### Fly.io
@@ -133,7 +135,7 @@ RUN npm ci --omit=dev
 COPY . .
 
 EXPOSE 8080
-CMD ["node", "server/index.js"]
+CMD ["node", "server.js"]
 ```
 
 ```bash
@@ -206,13 +208,13 @@ limit_req zone=ws_limit burst=20;
 | `MAX_PLAYERS_PER_ROOM` | `8` | Máximo jugadores por sala |
 
 ```bash
-PORT=8080 NODE_ENV=production node server/index.js
+PORT=8080 NODE_ENV=production node server.js
 ```
 
 ### Logging
-El servidor currently no tiene logging estructurado. Para producción:
+El servidor actualmente no tiene logging estructurado. Para producción:
 ```javascript
-// server/index.js — agregar antes de gateway
+// server.js — agregar antes de gateway
 import pino from 'pino';
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
@@ -229,7 +231,7 @@ logger.info({ sessionId, eventType: event.type }, 'event received');
 - **PM2** process manager (restarts automáticos):
 ```bash
 npm install -g pm2
-pm2 start server/index.js --name game-cartesiano
+pm2 start server.js --name game-cartesiano
 pm2 save
 pm2 startup
 ```
@@ -237,7 +239,7 @@ pm2 startup
 ### Salud del servidor
 ```bash
 # Endpoint de health check
-# Agregar en server/index.js:
+# Agregar en server.js:
 if (req.url === '/health') {
   res.writeHead(200, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ status: 'ok', rooms: gateway.roomEngine.rooms.size }));
