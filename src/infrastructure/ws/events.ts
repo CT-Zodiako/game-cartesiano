@@ -202,4 +202,3 @@ export type S2CEventType = S2CEvent["type"];
 // ── Shared domain types ─────────────────────────────────────────────────────
 
 export type RoomState = SerializedRoomState;
-

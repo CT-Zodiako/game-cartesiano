@@ -20,7 +20,11 @@ export interface RoomConfig {
 }
 
 export type RoundResultReason = "OK" | "TIMEOUT";
-export type ClaimAckReason = "OK" | "WRONG_TARGET" | "TOO_LATE" | "ROUND_NOT_ACTIVE";
+export type ClaimAckReason =
+	| "OK"
+	| "WRONG_TARGET"
+	| "TOO_LATE"
+	| "ROUND_NOT_ACTIVE";
 export type LateAlertCode = "TOO_LATE";
 
 export interface ClaimAck {
