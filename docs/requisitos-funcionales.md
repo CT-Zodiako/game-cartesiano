@@ -1,5 +1,7 @@
 # Requisitos Funcionales — Game Cartesiano
 
+**Propósito/estado:** requisitos deseados del producto; cuando el PRD marca bugs, este documento describe el comportamiento objetivo a implementar.
+
 Juego educativo del plano cartesiano. Competencia para ver quién ubica más rápido las coordenadas.
 
 ## RF-1: Modo Ejercicio (Single-Player)
@@ -103,6 +105,7 @@ pointsEarned = Math.max(100, Math.floor(1000 * (1 - elapsed / roundDurationMs)))
 - Coordenadas de -10 a 10 en ambos ejes
 - Vértices clickeables (radio 6px)
 - `punto.gif` posicionado en el vértice actual
+- Marcador visual del objetivo dibujado sobre el vértice correspondiente del tablero
 
 ### RF-4.2: Panel de información (DOM)
 - Objetivo actual en texto

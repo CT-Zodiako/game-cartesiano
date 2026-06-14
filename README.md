@@ -19,7 +19,7 @@ tests/                # Tests unitarios
 
 ## Cómo correrlo
 
-###安装 dependencias
+### Instalar dependencias
 
 ```bash
 npm install
@@ -38,12 +38,15 @@ Esto levanta Vite en `http://localhost:5173` (o el puerto disponible).
 Para jugar online necesitás dos terminales:
 
 **Terminal 1 - Servidor:**
+
 ```bash
-node server.js
+npm start
 ```
+
 Servidor en `http://localhost:8080` y `ws://localhost:8080/ws`
 
 **Terminal 2 - Frontend:**
+
 ```bash
 npm run dev
 ```
@@ -57,15 +60,19 @@ Luego agregá `?online=1` a la URL, por ejemplo:
 npm test
 ```
 
+Esto ejecuta los tests de UI y servidor (`tests/ui/*.test.ts` y `tests/server/*.test.ts`).
+
 ## Cómo jugar
 
 ### Modo single-player
+
 1. Mirar la coordenada objetivo que aparece en pantalla
 2. Hacer click en una celda del tablero para elegir la posición
 3. Presionar **Comprobar** para validar
 4. Repetir para sumar puntaje
 
 ### Modo online
+
 1. Ir a tab **Online**
 2. Configurar (opcional): jugadores máx, rondas, segundos por ronda, coordenadas máx
 3. El host crea una sala y comparte el código

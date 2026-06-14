@@ -1,5 +1,7 @@
 # Contexto del Juego — Game Cartesiano
 
+**Propósito/estado:** guía visual para prompts e iteración de UI; toma `design.md` como referencia estética y `PRD.md` como estado funcional.
+
 ## ¿Qué es?
 
 **Game Cartesiano** es un juego educativo de plano cartesiano para estudiantes.
@@ -33,7 +35,8 @@ hacer clic en el vértice correcto del tablero. Hay dos modos:
 2. El jugador hace clic en el vértice del tablero que corresponde
 3. Feedback inmediato: ✓ acierto o ✗ error
 4. En modo online: el servidor valida con temporizador oficial
-   - Fórmula de score: `1000 + clamp(20 - tiempo_respuesta, 0, 20) * 100`
+   - Fórmula de score: `Math.max(100, Math.floor(1000 * (1 - elapsed / roundDurationMs)))`
+5. El objetivo debe verse también como marcador en el tablero, no solo como texto en el HUD
 
 ---
 
@@ -59,7 +62,7 @@ Interfaz oscura tipo "game" para que se sienta como competencia, no como tarea.
 A dark educational math game UI screenshot showing a Cartesian coordinate plane,
 dark navy background (#0f172a), subtle blue-gray grid lines, bold white X and Y axes
 meeting at the center origin, coordinate labels from -10 to 10 on both axes in light
-gray. A glowing lime-green dot marks a point on the grid. Top HUD shows: target
+gray. A glowing lime-green dot marks the player's selected point on the grid, and a visible cyan target marker highlights the target coordinate on the board. Top HUD shows: target
 coordinate "(-3, 7)" in cyan, current position "(2, 5)" in white, score "+200 pts",
 and a countdown timer "12s" in red. The overall aesthetic is a sleek dark-mode
 competitive multiplayer game for students. Flat vector game UI style, no gradients.
