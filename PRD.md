@@ -1,96 +1,127 @@
-import os
+# PRD — Game Cartesiano
 
-# Define the PRD content in Markdown
-prd_content = """# PRD: Mars Rover Math Engine - Documentación Técnica
+## Visión
 
-Este documento define las especificaciones técnicas para el desarrollo de un motor de simulación basado en el reto Mars Rover. El objetivo es proporcionar una plataforma donde el aprendizaje de conceptos matemáticos sea una consecuencia directa de la implementación lógica.
-
----
-
-## 1. El Plano Cartesiano: Estructura de Datos Espacial
-
-**Concepto Matemático:** El Plano Cartesiano es el **Espacio de Estado** del sistema.
-**Implementación Técnica:** El "Plateau" se define como una matriz de coordenadas enteras dentro de un dominio acotado.
-
-### 1.1. Definición del Dominio
-- **Ejes:** Se define un eje de abscisas ($X$) y un eje de ordenadas ($Y$).
-- **Origen:** El punto de referencia absoluto es $(0,0)$, ubicado en la esquina inferior izquierda (mínimo global).
-- **Límites (Upper-Right):** El límite máximo $(X_{max}, Y_{max})$ define el rango del plano.
-- **Tipo de Dato:** Enteros no negativos ($x, y \in \mathbb{Z} \geq 0$).
+Juego educativo multijugador en tiempo real donde los jugadores compiten por ubicar coordenadas en el plano cartesiano lo más rápido posible. El que responde primero y bien gana más puntos.
 
 ---
 
-## 2. Definición Matemática de Función (Transición de Estado)
+## Estado actual del proyecto
 
-En este motor, cada comando NASA (`L`, `R`, `M`) no es una instrucción de control de flujo, sino una **Función de Transformación de Estado** $f: S \to S$.
-
-### 2.1. El Estado del Rover ($S$)
-El estado se define como una tupla inmutable: 
-$$S = (x, y, \theta)$$
-Donde:
-- $x, y$: Coordenadas cartesianas.
-- $\theta$: Orientación (Cardinalidad $\in \{N, E, S, W\}$).
-
-### 2.2. Funciones de Rotación (Giro)
-Son funciones cíclicas que operan exclusivamente sobre la variable $\theta$.
-- **Función $L$ (Left):** $f(\theta) = (\text{índice}(\theta) + 3) \pmod 4$
-- **Función $R$ (Right):** $f(\theta) = (\text{índice}(\theta) + 1) \pmod 4$
-
-### 2.3. Función de Traslación (Movimiento $M$)
-Es una función de suma vectorial basada en vectores unitarios de dirección.
-$$f(x, y, \theta) = (x + \Delta x, y + \Delta y, \theta)$$
-
-| Orientación ($\theta$) | Vector Unitario ($\vec{v}$) | Transformación |
-| :--- | :--- | :--- |
-| **North (N)** | $(0, 1)$ | $y = y + 1$ |
-| **South (S)** | $(0, -1)$ | $y = y - 1$ |
-| **East (E)** | $(1, 0)$ | $x = x + 1$ |
-| **West (W)** | $(-1, 0)$ | $x = x - 1$ |
+| Área | Estado |
+|------|--------|
+| Tablero Phaser (grilla, click, punto) | ✅ Funciona |
+| Modo single-player (ciclo de juego) | ⚠️ Crash en "Marcar" (`renderState` no definido) |
+| Modo online — lobby, sala, inicio | ✅ Funciona |
+| Modo online — rondas y scoring | ⚠️ Contrato roto entre servidor y cliente |
+| Target visible en tablero | ❌ No implementado |
+| Tests del servidor | ❌ Todos huérfanos |
+| Servidor en TypeScript | ❌ Sigue en JS |
 
 ---
 
-## 3. Función Lineal: Desplazamiento y Pendiente
+## Bugs críticos (rompen el juego)
 
-**Concepto Matemático:** La función lineal $f(t) = mt + b$.
-**Implementación Técnica:** Cuando el comando `M` se repite $n$ veces sin cambios de dirección.
-
-### 3.1. Modelado de la Trayectoria
-Si el Rover está orientado al Norte y recibe $n$ comandos `M`:
-- **Ecuación:** $y(n) = 1 \cdot n + y_{inicial}$
-- **Pendiente ($m$):** Es la unidad de movimiento constante (1 unidad/comando).
-- **Intersección ($b$):** Es la posición inicial en el eje correspondiente antes de iniciar la secuencia de movimiento.
+### BUG-1 — `renderState` no definido
+**Dónde:** `src/main.ts:246`
+**Síntoma:** ReferenceError al presionar "Marcar" en modo single-player. El juego crashea.
+**Fix:** Eliminar la llamada o reemplazarla por `renderHud()` que sí existe.
 
 ---
 
-## 4. Requerimientos Funcionales y Validaciones
-
-### 4.1. Parser de Instrucciones
-El sistema debe procesar un `string` de comandos y ejecutar una **composición de funciones**:
-$$Estado_{Final} = (f_n \circ f_{n-1} \circ \dots \circ f_1)(Estado_{Inicial})$$
-
-### 4.2. Validación de Fronteras (Dominio Acotado)
-Antes de cada actualización de estado de movimiento, el motor debe validar la pre-condición:
-- $0 \leq x' \leq X_{max}$
-- $0 \leq y' \leq Y_{max}$
-Si el nuevo estado viola esta condición, la función de traslación debe retornar el estado actual (inmovilidad) o lanzar una excepción de "Fuera de Dominio".
-
-### 4.3. Procesamiento Secuencial
-Cada Rover debe completar su cadena de funciones antes de que el siguiente Rover inicie su ejecución, garantizando la integridad de los datos en el plano (evitando colisiones lógicas en el estado).
+### BUG-2 — El objetivo nunca se dibuja en el tablero
+**Dónde:** `src/ui/phaser/RoverScene.ts` — método `drawAll()`
+**Síntoma:** `targetGfx` se inicializa y se limpia en cada frame, pero nunca se dibuja sobre él. El jugador solo ve la coordenada en texto, no en el tablero.
+**Fix:** En `drawAll()`, si `this.targetState !== null`, dibujar un marcador visual (círculo, cruz) sobre el vértice correspondiente usando `targetGfx` y `cellToPixel`.
 
 ---
 
-## 5. Arquitectura Sugerida para la Demo
-
-- **Backend (API):** Un controlador que reciba el JSON/Texto de entrada, realice el parsing y ejecute el motor de lógica matemática.
-- **Frontend (Visualizador):** Una grilla interactiva que escuche los cambios de estado y anime el desplazamiento del rover, dibujando la "traza" del movimiento para visualizar la función lineal resultante.
+### BUG-3 — `JOIN_ROOM` corrompe la identidad de jugadores existentes
+**Dónde:** `server.js` — handler `JOIN_ROOM`
+**Síntoma:** Al unirse un jugador nuevo, el servidor hace `broadcast()` con `yourPlayerId` del recién llegado. Todos los jugadores ya en el lobby reciben ese ID como si fuera el suyo — pierden su identidad.
+**Fix:** Unicastear al nuevo jugador con su `yourPlayerId`. Broadcastear al resto sin ese campo (o con el suyo propio por separado).
 
 ---
-*Documento generado para fines educativos y de ingeniería de software.*
-"""
 
-file_path = "/mnt/data/PRD_Mars_Rover_Math.md"
+### BUG-4 — Contrato `CLAIM_ACK` roto entre servidor y tipos
+**Dónde:** `server.js` vs `src/infrastructure/ws/events.ts`
+**Síntoma:** El servidor envía `{ pointsEarned }`, el tipo TS define `scoreDelta`. `main.ts` workaudioea con un cast manual. El campo correcto nunca llega tipado.
+**Fix:** Unificar el nombre en ambos lados. Usar `pointsEarned` en `events.ts` o `scoreDelta` en `server.js` — lo que sea, pero uno solo.
 
-with open(file_path, "w") as f:
-    f.write(prd_content)
+---
 
-print(f"File saved at: {file_path}")
+### BUG-5 — `GAME_ENDED` envía `ranking` pero el tipo define `finalRanking`
+**Dónde:** `server.js` vs `src/infrastructure/ws/events.ts` — `GameEndedEvent`
+**Síntoma:** El cliente nunca procesa el evento de fin de partida correctamente.
+**Fix:** Alinear el nombre del campo en server y tipo.
+
+---
+
+### BUG-6 — `claimed` Set usa clave de coordenada en vez de jugador
+**Dónde:** `server.js` — handler `SUBMIT_CLAIM`
+**Síntoma:** Si dos jugadores reciben el mismo target por coincidencia aleatoria, el segundo es rechazado con `TOO_LATE` aunque su respuesta sea válida.
+**Fix:** Cambiar la clave del Set a `playerId`, o usar un `Map<playerId, boolean>` para trackear claims por jugador.
+
+---
+
+## Deuda técnica
+
+### DT-1 — `server.js` en JavaScript
+El servidor es el único archivo JS en un proyecto que migró a TypeScript. Sin tipos, los bugs de protocolo (BUG-3, BUG-4, BUG-5, BUG-6) son invisibles en compile-time.
+
+**Impacto:** Cada cambio en el protocolo requiere sincronización manual entre `server.js` y `events.ts`. Tarde o temprano se desincroniza.
+
+**Acción:** Migrar `server.js` a `server.ts`. Importar los mismos tipos de `src/infrastructure/ws/events.ts` en ambos lados.
+
+---
+
+### DT-2 — Tests del servidor huérfanos
+Los archivos en `tests/server/` (scoring, room-engine, ws-gateway, ranking) referencian módulos que fueron eliminados. No corren. No hay cobertura del servidor.
+
+**Acción:** Una vez migrado `server.js` a TS modular, reescribir los tests contra los nuevos módulos.
+
+---
+
+### DT-3 — `handleRoomSnapshot` importado pero no usado
+**Dónde:** `src/main.ts:4`
+**Síntoma:** Con `noUnusedLocals: true` en tsconfig, `tsc --noEmit` falla. Vite en dev lo silencia.
+**Acción:** Eliminar el import o usarlo en vez del handler inline.
+
+---
+
+### DT-4 — Código muerto en `board.ts`
+- `drawGrid()` — exportada, nunca llamada (`RoverScene` dibuja la grilla inline)
+- `cellCenter()` — exportada, nadie la usa
+
+**Acción:** Eliminar o consolidar con el código inline de `RoverScene`.
+
+---
+
+### DT-5 — `WSClient.on()` sobreescribe silenciosamente
+Un solo handler por tipo de evento (Map). Si dos callers registran el mismo tipo, el segundo gana sin aviso ni error.
+
+**Acción:** Cambiar a `Map<string, WsEventHandler[]>` con array de listeners, o documentar explícitamente la restricción.
+
+---
+
+## Prioridades de implementación
+
+| # | Ítem | Tipo | Esfuerzo estimado |
+|---|------|------|-------------------|
+| 1 | BUG-1 Fix `renderState` | Bug | < 30 min |
+| 2 | BUG-2 Dibujar target en tablero | Bug | 1–2 h |
+| 3 | BUG-3 Fix `JOIN_ROOM` broadcast | Bug | 30 min |
+| 4 | BUG-4 + BUG-5 Alinear contrato CLAIM_ACK / GAME_ENDED | Bug | 30 min |
+| 5 | BUG-6 Fix `claimed` Set por jugador | Bug | 30 min |
+| 6 | DT-1 Migrar `server.js` a TypeScript | Deuda técnica | 2–4 h |
+| 7 | DT-2 Reescribir tests del servidor | Deuda técnica | 3–5 h |
+| 8 | DT-3 + DT-4 Limpiar imports y código muerto | Deuda técnica | 30 min |
+
+---
+
+## Fuera de scope (v1)
+
+- Reconexión de jugadores (`reconnectToken` definido en tipos pero no implementado)
+- Persistencia de rankings entre sesiones
+- Escala horizontal del servidor
+- API REST como fallback al WebSocket

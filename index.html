@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Mars Rover Math Demo</title>
+    <title>Plano Cartesiano</title>
     <style>
       html, body {
         margin: 0;
@@ -15,7 +15,7 @@
       }
       .app {
         display: grid;
-        grid-template-columns: 360px 1fr;
+        grid-template-columns: 320px 1fr;
         min-height: 100dvh;
       }
       .left {
@@ -26,8 +26,10 @@
       }
       .right {
         display: grid;
-        grid-template-rows: auto 1fr;
+        grid-template-rows: auto 1fr auto;
         min-width: 0;
+        padding: 16px;
+        gap: 16px;
       }
       textarea, input, button, select {
         width: 100%;
@@ -39,70 +41,918 @@
         color: #e2e8f0;
         padding: 8px;
       }
+      .tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+      .tab {
+        flex: 1;
+        padding: 8px;
+        background: #1e293b;
+        border: 1px solid #334155;
+        color: #94a3b8;
+        cursor: pointer;
+        border-radius: 6px;
+      }
+      .tab.active { background: #0b1220; color: #e2e8f0; border-color: #22d3ee; }
+      .hidden { display: none; }
       .controls { display: grid; grid-template-columns: repeat(2,1fr); gap: 6px; }
+      .config-section { margin: 8px 0; }
+      .config-section summary { cursor: pointer; color: #94a3b8; font-size: 0.9em; }
+      .config-section label { display: block; font-size: 0.85em; color: #94a3b8; margin: 4px 0; }
+      .config-section input { width: 60px; margin-left: 8px; }
+      
+      /* Header del juego - estilo marcador NBA */
+      .game-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 20px;
+        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+        border-radius: 12px;
+        border: 2px solid #334155;
+      }
+      
+      /* Coordenada seleccionada - estilo marcador NBA */
+      .coord-display {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .coord-label {
+        font-size: 0.75em;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+      .coord-value {
+        font-size: 2.5em;
+        font-weight: 900;
+        color: #22d3ee;
+        font-family: 'Courier New', monospace;
+        text-shadow: 0 0 20px rgba(34, 211, 238, 0.5);
+        line-height: 1;
+      }
+      
+      /* Objetivo - centro del header */
+      .target-display {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .target-label {
+        font-size: 0.75em;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+      .target-value {
+        font-size: 2.5em;
+        font-weight: 900;
+        color: #f472b6;
+        font-family: 'Courier New', monospace;
+        text-shadow: 0 0 20px rgba(244, 114, 182, 0.5);
+        line-height: 1;
+      }
+      
+      /* Tiempo - derecha */
+      .time-display {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+      }
+      .time-label {
+        font-size: 0.75em;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+      .time-value {
+        font-size: 2em;
+        font-weight: 900;
+        color: #facc15;
+        font-family: 'Courier New', monospace;
+        text-shadow: 0 0 15px rgba(250, 204, 21, 0.5);
+      }
+      .time-value.urgent {
+        color: #ef4444;
+        animation: pulse 0.5s infinite;
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+      }
+
+      /* Canvas del juego */
       #game-container {
         width: 100%;
         aspect-ratio: 1 / 1;
-        min-height: 320px;
-        max-height: calc(100dvh - 140px);
+        max-height: calc(100dvh - 220px);
+        margin: 0 auto;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 0 40px rgba(34, 211, 238, 0.15);
       }
-      #state-panel { padding: 10px; color: #e2e8f0; border-bottom: 1px solid #1e293b; }
-      #trace {
-        max-height: 220px;
-        overflow: auto;
-        padding-left: 18px;
+
+      /* Botón Marcar - estilo máquina expendedora */
+      .btn-mark {
+        width: 100%;
+        max-width: 300px;
+        margin: 0 auto;
+        padding: 20px 40px;
+        font-size: 1.5em;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.15em;
+        background: linear-gradient(180deg, #22d3ee 0%, #0891b2 100%);
+        color: #0f172a;
+        border: none;
+        border-radius: 16px;
+        cursor: pointer;
+        box-shadow: 
+          0 6px 0 #065f73,
+          0 8px 20px rgba(34, 211, 238, 0.4),
+          inset 0 2px 0 rgba(255,255,255,0.3);
+        transition: all 0.1s ease;
+        position: relative;
+        overflow: hidden;
       }
-      #trace li.warning { color: #facc15; }
-      #errors { color: #f87171; padding-left: 18px; }
+      /* Ocultar botón en modo online */
+      .btn-mark[data-mode="online"] {
+        display: none;
+      }
+      /* Mostrar botón en modo single (juego) */
+      .btn-mark[data-mode="single"] {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+      }
+
+      /* Tablero opacado cuando ya marcó */
+      #game-container.dimmed {
+        opacity: 0.3;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+      }
+      .btn-mark::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 50%;
+        background: linear-gradient(180deg, rgba(255,255,255,0.2) 0%, transparent 100%);
+        border-radius: 16px 16px 0 0;
+      }
+      .btn-mark:hover {
+        transform: translateY(-2px);
+        box-shadow: 
+          0 8px 0 #065f73,
+          0 12px 30px rgba(34, 211, 238, 0.5),
+          inset 0 2px 0 rgba(255,255,255,0.3);
+      }
+      .btn-mark:active {
+        transform: translateY(4px);
+        box-shadow: 
+          0 2px 0 #065f73,
+          0 4px 10px rgba(34, 211, 238, 0.3),
+          inset 0 2px 0 rgba(255,255,255,0.3);
+      }
+      .btn-mark:disabled {
+        background: linear-gradient(180deg, #475569 0%, #334155 100%);
+        color: #64748b;
+        box-shadow: 
+          0 4px 0 #1e293b,
+          0 6px 15px rgba(0,0,0,0.3);
+        cursor: not-allowed;
+      }
+
+      /* Panel de estado en modo online */
+      .score-panel {
+        display: flex;
+        justify-content: center;
+        gap: 30px;
+        padding: 10px;
+        background: #1e293b;
+        border-radius: 8px;
+        margin-top: 8px;
+      }
+      .score-item {
+        text-align: center;
+      }
+      .score-item label {
+        display: block;
+        font-size: 0.7em;
+        color: #94a3b8;
+        text-transform: uppercase;
+      }
+      .score-item span {
+        font-size: 1.2em;
+        font-weight: bold;
+        color: #22d3ee;
+      }
+
+      /* Ranking en vivo - estilo tabla de posiciones */
+      .ranking-panel {
+        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+        border: 2px solid #334155;
+        border-radius: 12px;
+        padding: 16px;
+        margin-top: 12px;
+      }
+      .ranking-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #334155;
+      }
+      .ranking-title {
+        font-size: 0.9em;
+        font-weight: 700;
+        color: #facc15;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+      .ranking-live {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.75em;
+        color: #4ade80;
+      }
+      .ranking-live::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        background: #4ade80;
+        border-radius: 50%;
+        animation: blink 1s infinite;
+      }
+      @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+      }
+      .ranking-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        max-height: 200px;
+        overflow-y: auto;
+      }
+      .ranking-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 12px;
+        margin: 4px 0;
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.5);
+        transition: all 0.2s ease;
+      }
+      .ranking-item.highlight {
+        background: linear-gradient(90deg, rgba(34, 211, 238, 0.2) 0%, transparent 100%);
+        border: 1px solid #22d3ee;
+      }
+      .ranking-item.top-3 {
+        background: linear-gradient(90deg, rgba(250, 204, 21, 0.15) 0%, transparent 100%);
+      }
+      .ranking-item.top-3:nth-child(1) {
+        background: linear-gradient(90deg, rgba(250, 204, 21, 0.3) 0%, transparent 100%);
+      }
+      .ranking-pos {
+        width: 28px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 900;
+        font-size: 0.9em;
+        border-radius: 50%;
+        background: #334155;
+        color: #94a3b8;
+      }
+      .ranking-item:nth-child(1) .ranking-pos {
+        background: #facc15;
+        color: #0f172a;
+        box-shadow: 0 0 10px rgba(250, 204, 21, 0.5);
+      }
+      .ranking-item:nth-child(2) .ranking-pos {
+        background: #94a3b8;
+        color: #0f172a;
+      }
+      .ranking-item:nth-child(3) .ranking-pos {
+        background: #cd7f32;
+        color: #0f172a;
+      }
+      .ranking-name {
+        flex: 1;
+        font-weight: 600;
+        color: #e2e8f0;
+        margin-left: 12px;
+      }
+      .ranking-score {
+        font-weight: 900;
+        font-size: 1.1em;
+        color: #22d3ee;
+        font-family: 'Courier New', monospace;
+      }
+      .ranking-empty {
+        text-align: center;
+        color: #64748b;
+        padding: 20px;
+        font-style: italic;
+      }
+
+      /* Modal de ranking final */
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.85);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        backdrop-filter: blur(8px);
+      }
+      .modal-overlay.visible {
+        display: flex;
+        animation: fadeIn 0.3s ease;
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      .modal-content {
+        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+        border: 3px solid #facc15;
+        border-radius: 24px;
+        padding: 32px;
+        max-width: 500px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 0 60px rgba(250, 204, 21, 0.3);
+        animation: slideUp 0.4s ease;
+      }
+      @keyframes slideUp {
+        from { transform: translateY(30px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+      .modal-title {
+        text-align: center;
+        font-size: 2em;
+        font-weight: 900;
+        color: #facc15;
+        margin: 0 0 24px 0;
+        text-shadow: 0 0 20px rgba(250, 204, 21, 0.5);
+      }
+      
+      /* Podium - top 3 */
+      .podium {
+        display: flex;
+        justify-content: center;
+        align-items: flex-end;
+        gap: 8px;
+        margin-bottom: 24px;
+        min-height: 140px;
+      }
+      .podium-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 12px 16px;
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.8);
+        min-width: 80px;
+      }
+      .podium-1 {
+        order: 2;
+        background: linear-gradient(180deg, rgba(250, 204, 21, 0.3) 0%, rgba(250, 204, 21, 0.1) 100%);
+        border: 2px solid #facc15;
+        transform: scale(1.1);
+        min-width: 100px;
+      }
+      .podium-2 {
+        order: 1;
+        background: linear-gradient(180deg, rgba(148, 163, 184, 0.2) 0%, transparent 100%);
+        border: 2px solid #94a3b8;
+      }
+      .podium-3 {
+        order: 3;
+        background: linear-gradient(180deg, rgba(205, 127, 50, 0.2) 0%, transparent 100%);
+        border: 2px solid #cd7f32;
+      }
+      .podium-crown {
+        font-size: 2em;
+        margin-bottom: 4px;
+      }
+      .podium-pos {
+        width: 28px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 900;
+        font-size: 1em;
+        border-radius: 50%;
+        background: #334155;
+        color: #e2e8f0;
+        margin-bottom: 8px;
+      }
+      .podium-2 .podium-pos { background: #94a3b8; color: #0f172a; }
+      .podium-3 .podium-pos { background: #cd7f32; color: #0f172a; }
+      .podium-name {
+        font-weight: 700;
+        font-size: 0.9em;
+        color: #e2e8f0;
+        text-align: center;
+        margin-bottom: 4px;
+      }
+      .podium-score {
+        font-weight: 900;
+        font-size: 1.3em;
+        color: #22d3ee;
+        font-family: 'Courier New', monospace;
+      }
+      .podium-empty {
+        color: #64748b;
+        font-style: italic;
+      }
+
+      /* Lista ranking (del 4 en adelante) */
+      .ranking-list-container {
+        margin-bottom: 20px;
+        max-height: 200px;
+        overflow-y: auto;
+      }
+      .ranking-list-container .ranking-item {
+        background: rgba(15, 23, 42, 0.5);
+        border: 1px solid #334155;
+      }
+      .ranking-list-container .ranking-item.highlight {
+        background: linear-gradient(90deg, rgba(34, 211, 238, 0.2) 0%, transparent 100%);
+        border-color: #22d3ee;
+      }
+
+      /* Botón cerrar modal */
+      .modal-close-btn {
+        display: block;
+        width: 100%;
+        padding: 14px 28px;
+        font-size: 1.1em;
+        font-weight: 700;
+        background: linear-gradient(180deg, #475569 0%, #334155 100%);
+        color: #e2e8f0;
+        border: 2px solid #64748b;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .modal-close-btn:hover {
+        background: linear-gradient(180deg, #64748b 0%, #475569 100%);
+        border-color: #94a3b8;
+      }
+
+      /* Feedback */
+      #feedback-text {
+        text-align: center;
+        padding: 10px;
+        font-size: 1.1em;
+        min-height: 24px;
+      }
+
+      /* Online Entry Menu */
+      .online-menu {
+        text-align: center;
+        padding: 20px 10px;
+      }
+      .online-menu-title {
+        font-size: 1.3em;
+        color: #e2e8f0;
+        margin: 0 0 8px 0;
+      }
+      .online-menu-subtitle {
+        font-size: 0.9em;
+        color: #94a3b8;
+        margin: 0 0 20px 0;
+      }
+      .online-menu-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .online-menu-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 16px;
+        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+        border: 2px solid #334155;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .online-menu-btn:hover {
+        border-color: #22d3ee;
+        transform: translateY(-2px);
+      }
+      .online-menu-btn.create:hover {
+        border-color: #4ade80;
+      }
+      .online-menu-btn.join:hover {
+        border-color: #f472b6;
+      }
+      .menu-btn-icon {
+        font-size: 1.8em;
+        margin-bottom: 8px;
+      }
+      .menu-btn-text {
+        font-size: 1.1em;
+        font-weight: 700;
+        color: #e2e8f0;
+      }
+      .menu-btn-desc {
+        font-size: 0.8em;
+        color: #64748b;
+        margin-top: 4px;
+      }
+
+      /* Online Form Panels */
+      .online-form-panel {
+        padding: 16px;
+      }
+      .back-btn {
+        background: transparent;
+        border: 1px solid #334155;
+        color: #94a3b8;
+        padding: 6px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.9em;
+        margin-bottom: 12px;
+      }
+      .back-btn:hover {
+        border-color: #64748b;
+        color: #e2e8f0;
+      }
+      .form-panel-title {
+        font-size: 1.2em;
+        color: #e2e8f0;
+        margin: 0 0 16px 0;
+        text-align: center;
+      }
+      .form-group {
+        margin-bottom: 12px;
+      }
+      .form-group label {
+        display: block;
+        font-size: 0.85em;
+        color: #94a3b8;
+        margin-bottom: 6px;
+      }
+      .action-btn {
+        width: 100%;
+        padding: 12px;
+        font-size: 1em;
+        font-weight: 700;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        margin-top: 8px;
+      }
+      .action-btn.create {
+        background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%);
+        color: #0f172a;
+      }
+      .action-btn.join {
+        background: linear-gradient(180deg, #f472b6 0%, #ec4899 100%);
+        color: #0f172a;
+      }
+      .action-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      }
+      .leave-btn {
+        width: 100%;
+        padding: 10px;
+        background: transparent;
+        border: 1px solid #ef4444;
+        color: #ef4444;
+        border-radius: 8px;
+        cursor: pointer;
+        margin-top: 10px;
+        font-size: 0.9em;
+      }
+      .leave-btn:hover {
+        background: rgba(239, 68, 68, 0.1);
+      }
+
+      /* Lobby header con código de sala */
+      .lobby-header {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 12px;
+        padding: 16px;
+        background: linear-gradient(180deg, rgba(34, 211, 238, 0.1) 0%, transparent 100%);
+        border: 2px solid #22d3ee;
+        border-radius: 12px;
+        margin-bottom: 12px;
+      }
+      .lobby-code-label {
+        font-size: 0.9em;
+        color: #94a3b8;
+        text-transform: uppercase;
+      }
+      .lobby-code {
+        font-size: 1.8em;
+        font-weight: 900;
+        color: #22d3ee;
+        font-family: 'Courier New', monospace;
+        letter-spacing: 0.1em;
+        text-shadow: 0 0 15px rgba(34, 211, 238, 0.5);
+      }
+
+      /* Instrucciones del modo juego */
+      .game-instructions {
+        padding: 16px;
+        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+        border: 2px solid #334155;
+        border-radius: 12px;
+      }
+      .instructions-title {
+        font-size: 1.1em;
+        color: #facc15;
+        margin: 0 0 12px 0;
+        text-align: center;
+      }
+      .instructions-list {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 16px 0;
+      }
+      .instructions-list li {
+        padding: 8px 0;
+        color: #e2e8f0;
+        font-size: 0.9em;
+        border-bottom: 1px solid #1e293b;
+      }
+      .instructions-list li:last-child {
+        border-bottom: none;
+      }
+      .rules-box {
+        background: rgba(34, 211, 238, 0.1);
+        border: 1px solid #22d3ee;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 12px;
+      }
+      .rules-title {
+        font-size: 0.9em;
+        color: #22d3ee;
+        margin: 0 0 8px 0;
+      }
+      .rules-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        font-size: 0.85em;
+      }
+      .rules-list li {
+        padding: 4px 0;
+        color: #cbd5e1;
+      }
+      .tips-box {
+        background: rgba(250, 204, 21, 0.1);
+        border: 1px solid #facc15;
+        border-radius: 8px;
+        padding: 12px;
+      }
+      .tips-title {
+        font-size: 0.9em;
+        color: #facc15;
+        margin: 0 0 6px 0;
+      }
+      .tips-text {
+        font-size: 0.8em;
+        color: #94a3b8;
+        margin: 0;
+        line-height: 1.4;
+      }
+
+      /* Aviso de reglas en modo online */
+      .online-rules-notice {
+        background: linear-gradient(180deg, rgba(244, 114, 182, 0.15) 0%, rgba(244, 114, 182, 0.05) 100%);
+        border: 2px solid #f472b6;
+        border-radius: 10px;
+        padding: 14px;
+        margin-bottom: 14px;
+      }
+      .notice-title {
+        font-size: 0.9em;
+        color: #f472b6;
+        margin: 0 0 10px 0;
+        font-weight: 700;
+      }
+      .notice-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .notice-list li {
+        font-size: 0.8em;
+        color: #e2e8f0;
+        padding: 4px 0;
+      }
+
       @media (max-width: 900px) {
-        .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+        .app { grid-template-columns: 1fr; }
         .left { max-height: none; border-right: 0; border-bottom: 1px solid #1e293b; }
-        #game-container {
-          max-height: none;
-          min-height: 52dvh;
-        }
+        #game-container { max-height: 50dvh; }
+        .coord-value { font-size: 1.8em; }
+        .time-value { font-size: 1.5em; }
       }
     </style>
   </head>
   <body>
     <div class="app">
       <section class="left">
-        <h2>Mars Rover Math v1</h2>
-        <h3>Modo online (MVP)</h3>
-        <input id="player-name" placeholder="Tu nombre" />
-        <input id="room-code" placeholder="Código de sala" />
-        <div class="controls">
-          <button id="btn-create-room">Crear sala</button>
-          <button id="btn-join-room">Unirse</button>
+        <h2>Plano Cartesiano</h2>
+        
+        <div class="tabs">
+          <button class="tab active" data-tab="single">Juego</button>
+          <button class="tab" data-tab="online">Online</button>
         </div>
-        <button id="btn-start-game" disabled>Iniciar partida (host)</button>
-        <p id="room-info-text">ONLINE_MODE apagado.</p>
-        <h3>Modo ejercicio</h3>
-        <p>Objetivo: ubicá el rover en la coordenada pedida.</p>
-        <p id="challenge-text"><strong>Objetivo:</strong> (0,0)</p>
-        <p>Hacé click en la celda del tablero para elegir la posición del rover.</p>
-        <div class="controls">
-          <button id="btn-play">Comprobar</button>
+        <div id="tab-single" class="tab-content">
+          <!-- Instrucciones del modo juego -->
+          <div class="game-instructions">
+            <h3 class="instructions-title">🎮 Cómo Jugar</h3>
+            <ul class="instructions-list">
+              <li>Observa la <strong>coordenada objetivo</strong> arriba</li>
+              <li>Haz click en el <strong>punto exacto</strong> del tablero donde crees que está</li>
+              <li>Presiona el botón <strong>MARCAR</strong> para verificar tu respuesta</li>
+            </ul>
+            
+            <div class="rules-box">
+              <h4 class="rules-title">📋 Reglas</h4>
+              <ul class="rules-list">
+                <li>✅ Cada acierto = <strong>+1 punto</strong></li>
+                <li>❌ Cada error = <strong>-1 punto</strong> (mínimo 0)</li>
+                <li>🔄 Tras cada intento aparece un nuevo objetivo</li>
+              </ul>
+            </div>
+            
+            <div class="tips-box">
+              <h4 class="tips-title">💡 Consejo</h4>
+              <p class="tips-text">El plano tiene cuatro cuadrantes. El centro es (0,0). X va derecha/izquierda, Y va arriba/abajo.</p>
+            </div>
+          </div>
         </div>
-        <p id="score-text"><strong>Puntaje:</strong> 0</p>
+        <div id="tab-online" class="tab-content hidden">
+          <!-- Menú de entrada online -->
+          <div id="online-entry-menu" class="online-menu">
+            <h3 class="online-menu-title">Modo Online</h3>
+            <p class="online-menu-subtitle">Elige una opción para comenzar</p>
+            <div class="online-menu-buttons">
+              <button id="btn-create-room" class="online-menu-btn create">
+                <span class="menu-btn-icon">➕</span>
+                <span class="menu-btn-text">Crear Sala</span>
+                <span class="menu-btn-desc">Crea una nueva sala y invite a otros</span>
+              </button>
+              <button id="btn-join-room" class="online-menu-btn join">
+                <span class="menu-btn-icon">🔗</span>
+                <span class="menu-btn-text">Unirse a Sala</span>
+                <span class="menu-btn-desc">Ingresa el código de una sala existente</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Panel crear sala -->
+          <div id="online-create-panel" class="online-form-panel hidden">
+            <button id="btn-back-create" class="back-btn">← Volver</button>
+            <h3 class="form-panel-title">Crear Nueva Sala</h3>
+            <div class="form-group">
+              <label for="player-name-create">Tu nombre</label>
+              <input id="player-name-create" placeholder="Ingresa tu nombre" />
+            </div>
+            <details class="config-section">
+              <summary>Configuración de sala</summary>
+              <label>Jugadores máx: <input id="config-max-players" type="number" value="8" min="2" max="20" /></label>
+              <label>Rondas: <input id="config-rounds" type="number" value="3" min="1" max="10" /></label>
+              <label>Segundos por ronda: <input id="config-seconds" type="number" value="20" min="5" max="120" /></label>
+              <label>Coord. máx (eje): <input id="config-max-xy" type="number" value="10" min="1" max="20" /></label>
+            </details>
+            <button id="btn-confirm-create" class="action-btn create">Crear Sala</button>
+          </div>
+
+          <!-- Panel unirse a sala -->
+          <div id="online-join-panel" class="online-form-panel hidden">
+            <button id="btn-back-join" class="back-btn">← Volver</button>
+            <h3 class="form-panel-title">Unirse a una Sala</h3>
+            <div class="form-group">
+              <label for="player-name-join">Tu nombre</label>
+              <input id="player-name-join" placeholder="Ingresa tu nombre" />
+            </div>
+            <div class="form-group">
+              <label for="room-code-join">Código de sala</label>
+              <input id="room-code-join" placeholder="Código de 6 caracteres" maxlength="6" />
+            </div>
+            <button id="btn-confirm-join" class="action-btn join">Unirse</button>
+          </div>
+
+          <!-- Lobby (visible cuando está en sala) -->
+          <div id="online-lobby" class="hidden">
+            <div class="lobby-header">
+              <span class="lobby-code-label">Sala</span>
+              <span class="lobby-code" id="lobby-code-display">—</span>
+            </div>
+            
+            <!-- Aviso de reglas online -->
+            <div class="online-rules-notice">
+              <h4 class="notice-title">⚡ Modo Competitivo</h4>
+              <ul class="notice-list">
+                <li>🎯 <strong>Una sola oportunidad</strong> por ronda</li>
+                <li>⏱️ <strong>Más rápido</strong> = más puntos (hasta 1000)</li>
+                <li>🐢 <strong>Más lento</strong> = menos puntos (mínimo 100)</li>
+                <li>❌ <strong>Incorrecto o tarde</strong> = 0 puntos</li>
+              </ul>
+            </div>
+            
+            <button id="btn-start-game" disabled>Iniciar partida (host)</button>
+            <button id="btn-leave-room" class="leave-btn">Salir de la sala</button>
+          </div>
+
+          <!-- Ranking en vivo -->
+          <div class="ranking-panel">
+            <div class="ranking-header">
+              <span class="ranking-title">🏆 Posiciones</span>
+              <span class="ranking-live">EN VIVO</span>
+            </div>
+            <ul class="ranking-list" id="ranking-list">
+              <li class="ranking-empty">Sin jugadores aún</li>
+            </ul>
+          </div>
+        </div>
+        
+        <!-- Feedback -->
         <p id="feedback-text"></p>
-      </section>
-      <section class="right">
-        <div id="state-panel">
-          <strong>Estado actual:</strong>
-          <span data-role="state">S=(0,0,N)</span>
-          <br />
-          <strong>Cuenta regresiva:</strong>
-          <span data-role="countdown">—</span>
-          <br />
+        
+        <!-- Ranking -->
+        <div id="ranking-container" class="hidden">
           <strong>Ranking:</strong>
           <ol data-role="ranking"></ol>
-          <p data-role="late-alert" style="color: #facc15"></p>
         </div>
+      </section>
+      
+      <section class="right">
+<!-- Header con coordenada, objetivo y tiempo -->
+      <div class="game-header">
+        <div class="coord-display">
+          <span class="coord-label">Tu elección</span>
+          <span class="coord-value" id="selected-coord">(0, 0)</span>
+        </div>
+        <div class="target-display">
+          <span class="target-label">Objetivo</span>
+          <span class="target-value" id="target-coord">(0, 0)</span>
+        </div>
+        <div class="time-display">
+          <span class="time-label">Tiempo</span>
+          <span class="time-value" data-role="countdown">—</span>
+        </div>
+      </div>
+        
+        <!-- Canvas del juego -->
         <div id="game-container"></div>
+        
+        <!-- Botón Marcar estilo máquina - oculto en modo online -->
+        <button id="btn-play" class="btn-mark" data-mode="single">Marcar</button>
       </section>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
-    <script type="module" src="./game.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+  <script type="module" src="/src/main.ts"></script>
+  <script>
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        if (tab.dataset.tab === 'online' && !window.location.search.includes('online=1')) {
+          window.location.href = window.location.href.replace(window.location.search, '') + '?online=1';
+          return;
+        }
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+        tab.classList.add('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.remove('hidden');
+        // Si cambia a modo Juego (single), mostrar objetivo
+        if (tab.dataset.tab === 'single' && window.generateNewChallenge) {
+          window.generateNewChallenge();
+        }
+      });
+    });
+    // Auto-click Online tab if ?online=1
+    if (window.location.search.includes('online=1')) {
+      document.querySelectorAll('.tab')[1]?.click();
+    }
+  </script>
   </body>
-  </html>
+</html>

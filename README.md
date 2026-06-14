@@ -1,54 +1,74 @@
-# Game Cartesiano (Mars Rover Math)
+# Game Cartesiano
 
-Proyecto educativo en JavaScript para practicar plano cartesiano con una dinámica de juego.
-
-La app muestra una grilla (Phaser) donde tenés que ubicar el rover en la coordenada objetivo. Si acertás, sumás puntos; si fallás, se descuenta.
+Juego educativo de plano cartesiano - competencia multiplayer para ver quién ubica más rápido las coordenadas.
 
 ## Tecnologías
 
-- JavaScript (ES Modules)
-- Phaser 3 (vía CDN)
-- Node.js (para correr tests)
+- **Frontend**: TypeScript + Vite + Phaser 3
+- **Tests**: tsx + Node.js test runner
 
-## Estructura general
+## Estructura
 
-- `index.html`: interfaz principal
-- `game.js`: lógica del juego en el navegador
-- `src/domain/rover/`: reglas del dominio (movimiento, validación, ejecución)
-- `src/application/`: parser y simulación de escenarios
-- `src/ui/`: adaptadores de UI
-- `tests/`: tests unitarios y de integración
+```
+src/
+├── domain/rover/     # Tipos del dominio
+├── infrastructure/  # Cliente WebSocket
+└── ui/               # Phaser (board, scenes), DOM (state panel)
+tests/                # Tests unitarios
+```
 
-## Cómo iniciar el proyecto
+## Cómo correrlo
 
-Como usa módulos ES en navegador, conviene levantar un servidor local (no abrir el HTML directo con `file://`).
-
-### Opción recomendada (Python)
-
-1. Parate en la carpeta del proyecto.
-2. Ejecutá:
+###安装 dependencias
 
 ```bash
-python3 -m http.server 5500
+npm install
 ```
 
-3. Abrí en el navegador:
-
-```text
-http://localhost:5500
-```
-
-## Ejecutar tests
-
-Con Node.js 18+:
+### Desarrollo (modo single-player)
 
 ```bash
-node --test
+npm run dev
 ```
 
-## Objetivo del juego
+Esto levanta Vite en `http://localhost:5173` (o el puerto disponible).
 
-1. Mirar la coordenada objetivo que aparece en pantalla.
-2. Hacer click en una celda del tablero para elegir la posición del rover.
-3. Presionar **Comprobar** para validar.
-4. Repetir para sumar puntaje.
+### Modo Online (multiplayer)
+
+Para jugar online necesitás dos terminales:
+
+**Terminal 1 - Servidor:**
+```bash
+node server.js
+```
+Servidor en `http://localhost:8080` y `ws://localhost:8080/ws`
+
+**Terminal 2 - Frontend:**
+```bash
+npm run dev
+```
+
+Luego agregá `?online=1` a la URL, por ejemplo:
+`http://localhost:5173/?online=1`
+
+### Tests
+
+```bash
+npm test
+```
+
+## Cómo jugar
+
+### Modo single-player
+1. Mirar la coordenada objetivo que aparece en pantalla
+2. Hacer click en una celda del tablero para elegir la posición
+3. Presionar **Comprobar** para validar
+4. Repetir para sumar puntaje
+
+### Modo online
+1. Ir a tab **Online**
+2. Configurar (opcional): jugadores máx, rondas, segundos por ronda, coordenadas máx
+3. El host crea una sala y comparte el código
+4. Otros jugadores se unen con el código
+5. El host inicia la partida
+6. Todos ven el mismo objetivo y compiten por quién responde más rápido

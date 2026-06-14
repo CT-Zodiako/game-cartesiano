@@ -4,19 +4,26 @@
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    CLIENTE (Browser)                  │
-│  ┌──────────┐  ┌──────────┐  ┌──────────────────────┐  │
-│  │  Phaser  │  │  Game.js │  │  WebSocket Client    │  │
-│  │ (Visual) │  │ (Lógica) │  │  (Online Mode)       │  │
-│  └──────────┘  └──────────┘  └──────────────────────┘  │
+│                    CLIENTE (Browser)                    │
+│  ┌──────────────┐  ┌──────────────┐  ┌───────────────┐  │
+│  │  RoverScene  │  │   main.ts    │  │   WSClient    │  │
+│  │  (Phaser 3)  │  │ (Bootstrap)  │  │  (Online)     │  │
+│  └──────────────┘  └──────────────┘  └───────────────┘  │
+│                                                          │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │              UI (index.html)                       │  │
+│  │  - Header: coordenada + objetivo + tiempo         │  │
+│  │  - Menú online: crear/unirse como paneles         │  │
+│  │  - Lobby con código de sala visible               │  │
+│  │  - Ranking en vivo (lobby + final)                │  │
+│  │  - Botón "Marcar" (solo modo single-player)       │  │
+│  └────────────────────────────────────────────────────┘  │
 └────────────────────────┬────────────────────────────────┘
                          │ WebSocket / HTTP
 ┌────────────────────────▼────────────────────────────────┐
-│                   SERVIDOR (Node.js)                    │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
-│  │  WS Gateway  │  │ Room Engine  │  │   Scoring    │   │
-│  │  (protocol)  │  │   (FSM)      │  │  (Ranking)   │   │
-│  └──────────────┘  └──────────────┘  └──────────────┘   │
+│               SERVIDOR (Node.js — server.ts)            │
+│  TypeScript: WebSocket + HTTP estático                  │
+│  Sala, rondas, scoring y ranking manejados inline        │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -25,18 +32,16 @@
 ## ST-2: Stack Tecnológico
 
 ### Frontend
-- **Phaser 3.90** (CDN) — motor de renderizado del tablero
-- **Vanilla JS** (ES Modules) — lógica de juego y UI
-- **WebSocket API** nativa — comunicación con servidor
+- **Phaser 3** (CDN) — motor de renderizado del tablero
+- **TypeScript** (strict) — todo el código cliente
+- **Vite** — bundler / dev server (proxy `/ws` → `:8080`)
+- **WebSocket API** nativa del browser
+- **HTML/CSS** — UI con estilos modernos
 
 ### Backend
 - **Node.js** — runtime
-- **ws** — librería WebSocket server
-- **Sin frameworks** — lógica pura en módulos
-
-### Testing
-- **Node.js built-in test runner** (`node --test`)
-- **Sin dependencias externas** de testing
+- **ws ^8** — librería WebSocket server
+- **TypeScript** — `server.ts`
 
 ---
 
@@ -44,181 +49,143 @@
 
 ```
 game_cartesiano/
-├── index.html          # Entry point
-├── game.js             # Bootstrap y coordinación
+├── index.html              # Entry point + UI completa
+├── server.ts               # Servidor WebSocket + HTTP estático (TypeScript)
+├── vite.config.ts          # Config Vite
+├── tsconfig.json           # TypeScript strict
+├── package.json
+├── public/
+│   └── assets/
+│       └── punto.gif       # Sprite del punto
 ├── src/
+│   ├── main.ts             # Bootstrap + lógica online + UI handlers
 │   ├── domain/
-│   │   ├── rover/
-│   │   │   ├── state.js       # Estado, orientación, transiciones
-│   │   │   ├── parser.js      # Parseo de comandos L/R/M
-│   │   │   └── validator.js   # Validación de fronteras
-│   │   └── scoring/
-│   │       └── index.js      # Fórmula de scoring
-│   ├── application/
-│   │   └── scenarios.js       # Simulación de partidas
+│   │   └── rover/
+│   │       └── types.ts    # RoverState, Plateau
+│   ├── infrastructure/
+│   │   └── ws/
+│   │       ├── client.ts   # WSClient + handlers
+│   │       └── events.ts   # Tipos del protocolo
 │   └── ui/
-│       ├── phaser/
-│       │   ├── RoverScene.js   # Escena del tablero
-│       │   └── Board.js        # Renderizado de grilla
-│       └── dom/
-│           └── hud.js          # Panel lateral y controles
-├── server/
-│   ├── protocol-v1.js  # Schemas y validador de mensajes
-│   ├── room-engine.js  # FSM de sala
-│   ├── scoring.js     # Lógica de puntuación
-│   ├── ranking.js     # Clasificación
-│   └── ws-gateway.js  # Servidor WebSocket
-├── docs/               # Documentación
-│   ├── user-stories.md
-│   ├── requisitos-funcionales.md
-│   ├── requisitos-no-funcionales.md
-│   └── arquitectura.md (este archivo)
-└── tests/
-    ├── domain/
-    ├── ui/
-    └── integration/
+│       ├── dom/
+│       │   └── statePanel.ts
+│       └── phaser/
+│           ├── RoverScene.ts
+│           └── board.ts
+└── docs/
 ```
 
 ---
 
-## ST-4: Dominio del Rover
+## ST-4: Flujo Online
 
-### Estado
-```javascript
-const state = {
-  x: number,      // 0 ≤ x ≤ X_MAX
-  y: number,      // 0 ≤ y ≤ Y_MAX
-  theta: 'N'|'E'|'S'|'W'
-}
+### Menú de Entrada
+```
+┌─────────────────────────┐
+│     MODO ONLINE         │
+│  Elige una opción       │
+│                         │
+│  [+ Crear Sala]         │ ───► Panel crear sala
+│    "Crea nueva..."     │
+│                         │
+│  [🔗 Unirse a Sala]     │ ───► Panel unirse
+│    "Código de 6 chars"  │
+└─────────────────────────┘
 ```
 
-### Orientaciones (índice circular)
-```javascript
-const DIRS = ['N', 'E', 'S', 'W']  // índice: N=0, E=1, S=2, W=3
-// L: índice - 1 (mod 4)
-// R: índice + 1 (mod 4)
+### Panel Crear Sala
+- Nombre del jugador
+- Configuración (jugadores, rondas, tiempo, coordenadas)
+- Botón "Crear Sala"
+- Botón "← Volver"
+
+### Panel Unirse
+- Nombre del jugador
+- Código de sala (6 caracteres)
+- Botón "Unirse"
+- Botón "← Volver"
+
+### Lobby (visible tras crear/unirse)
 ```
+┌─────────────────────────┐
+│      SALA ABC123        │  <- Código grande visible
+│                         │
+│  [Iniciar partida]     │  <- Solo visible para el host
+│  [Salir de la sala]    │
+└─────────────────────────┘
 
-### Comandos
-| Comando | Función |
-|---------|---------|
-| `L` | Rotar 90° a la izquierda |
-| `R` | Rotar 90° a la derecha |
-| `M` | Avanzar 1 unidad en dirección actual |
-
-### Validación de fronteras
-```javascript
-// Antes de mover: verificar que nueva posición esté dentro del dominio
-function isValidPosition(x, y, xMax, yMax) {
-  return 0 <= x && x <= xMax && 0 <= y && y <= yMax
-}
-```
-
----
-
-## ST-5: Protocolo WebSocket (v1)
-
-### Handshake
-```javascript
-// Cliente conecta a ws://localhost:8080
-// ws-gateway valida origen y asigna sala
-```
-
-### Estados de Sala (FSM)
-```
-LOBBY ──(START_GAME)──▶ PLAYING ──(3 rondas)──▶ ENDED
-   │                       │
-   └──────(LEAVE_ROOM)─────┘
-```
-
-### Rooms
-```javascript
-const room = {
-  code: string,           // 6 chars alfanuméricos
-  host: string,           // nombre del host
-  players: Map<id, Player>,
-  state: 'LOBBY'|'PLAYING'|'ENDED',
-  roundNumber: number,
-  target: { x, y },
-  claims: Map<playerId, { x, y, timestamp }>
-}
-```
-
-### Player
-```javascript
-const player = {
-  id: string,
-  name: string,
-  score: number,
-  ws: WebSocket
-}
+🏆 POSICIONES  EN VIVO
+1. Player1  -  0
+2. Player2  -  0
 ```
 
 ---
 
-## ST-6: Fórmula de Scoring
+## ST-5: Modal Ranking Final
 
-```javascript
-function calculateScore(submitTime, roundStartTime, isCorrect) {
-  if (!isCorrect) return 0
+Al terminar la partida, aparece un modal con:
+- **Podium**: Top 3 (oro centro, plata izquierda, bronce derecha)
+- **Corona 👑** para el ganador
+- **Lista** del 4° en adelante
+- Tu posición resaltada si eres participante
 
-  const elapsed = submitTime - roundStartTime  // ms
-  const clampedTime = Math.min(elapsed, 20000)  // 20s max
-  const timeBonus = 20 - (clampedTime / 1000)
+---
 
-  return Math.round(timeBonus * 100 + 1000)
+## ST-6: UI del Juego (Header)
+
+```
+┌────────────────────────────────────────────────────────┐
+│  TU ELECCIÓN     OBJETIVO          TIEMPO             │
+│  (5, 3)          (-4, -5)          12s               │
+└────────────────────────────────────────────────────────┘
+```
+- **Tu elección** (cyan): se actualiza al hacer click en el tablero
+- **Objetivo** (rosa): la coordenada a encontrar
+- **Tiempo** (amarillo): countdown de la ronda
+
+---
+
+## ST-7: Protocolo WebSocket
+
+### Eventos C2S
+| Tipo | Descripción |
+|------|-------------|
+| `CREATE_ROOM` | Crear sala con config |
+| `JOIN_ROOM` | Unirse con código |
+| `START_GAME` | Iniciar partida (solo host) |
+| `SUBMIT_CLAIM` | Enviar respuesta |
+
+### Eventos S2C
+| Tipo | Descripción |
+|------|-------------|
+| `ROOM_SNAPSHOT` | Estado de la sala + players |
+| `ROUND_STARTED` | Nueva ronda + target |
+| `CLAIM_ACK` | Resultado del claim |
+| `RANKING_UPDATED` | Ranking en vivo |
+| `GAME_ENDED` | Fin de partida |
+
+---
+
+## ST-8: Scoring
+
+```typescript
+// Online
+pointsEarned = Math.max(100, Math.floor(1000 * (1 - elapsed / roundDurationMs)))
+
+// Single-player
+hit ? score += 1 : score = Math.max(0, score - 1)
+```
+
+---
+
+## ST-9: Configuración por Defecto
+
+```typescript
+{
+  maxPlayers: 8,
+  rounds: 3,
+  roundDurationMs: 20000,  // 20 segundos
+  maxX: 10,
+  maxY: 10
 }
 ```
-
-### Ejemplos
-| Tiempo de respuesta | Puntuación |
-|--------------------|------------|
-| < 1s | 2900-3000 |
-| 5s | 2500 |
-| 10s | 2000 |
-| 20s | 1000 |
-
----
-
-## ST-7: API REST (meta, opcional v2)
-
-No en scope para v1. En v2 se contempla:
-- `GET /api/rooms/:code` — estado de sala (polling fallback)
-- `POST /api/rooms` — crear sala sin WebSocket
-
----
-
-## ST-8: Configuración
-
-```javascript
-// Constantes globales (pueden extraerse a config.js)
-const CONFIG = {
-  GRID_SIZE: 10,           // X_MAX, Y_MAX
-  ROUND_DURATION: 20000,    // ms
-  MAX_ROUNDS: 3,
-  MAX_PLAYERS: 8,
-  RECONNECT_WINDOW: 30000,  // ms
-  TICK_INTERVAL: 1000       // ms (ROOM_SNAPSHOT)
-}
-```
-
----
-
-## ST-9: Flujo de Ronda (detallado)
-
-```
-1. GAME_STARTED → servidor envía a todos
-2. ROUND_STARTED → { roundNumber: 1, target: { x, y } }
-3. Cada cliente renderiza el objetivo
-4. Jugador hace click → SUBMIT_CLAIM
-5. [20s] Servidor recibe claims o timeout
-6. ROUND_ENDED → { roundNumber, results: [...] }
-7. Ranking actualizado
-8. [Si rounds < 3] → volver a paso 2
-9. GAME_ENDED → rankings finales
-```
-
-### Resolucción de colisiones
-- First-wins: el primer claim en timestamp gana
-- Claims con mismo timestamp: jugador con ID menor gana
-- Claims duplicados: idempotentes, sin duplicar score
