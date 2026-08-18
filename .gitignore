@@ -33,4 +33,4 @@ build/
 # Agent infrastructure
 .atl/
 .pi-lens/
-.pi/settings.json
+.pi/
