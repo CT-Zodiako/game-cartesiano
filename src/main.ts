@@ -17,6 +17,7 @@ import type {
 	RoundStartedEvent,
 	GameEndedEvent,
 } from "@infrastructure/ws/events.ts";
+import { deriveWsUrl } from "@infrastructure/ws/url.ts";
 
 // ── Plateau config ─────────────────────────────────────────────────────────
 
@@ -227,9 +228,11 @@ function syncLobbyUi(roomState: RoomState): void {
 }
 
 function initOnlineMode(): void {
-	const wsUrl =
-		(window as unknown as { __WS_URL__: string }).__WS_URL__ ??
-		`ws://${window.location.host}/ws`;
+	const wsUrl = deriveWsUrl(
+		window.location.protocol,
+		window.location.host,
+		(window as unknown as { __WS_URL__?: string }).__WS_URL__,
+	);
 	ws.connect(wsUrl);
 
 	ws.on("connected", () => {
