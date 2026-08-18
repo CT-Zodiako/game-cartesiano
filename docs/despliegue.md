@@ -1,6 +1,6 @@
 # Despliegue — Game Cartesiano Online
 
-**Propósito/estado:** guía de despliegue para el estado actual del PRD; el entrypoint vigente del servidor es `server.js`.
+**Propósito/estado:** guía de despliegue para el estado actual del PRD; el entrypoint vigente del servidor es `server.ts` (`npm start` corre `tsx server.ts`).
 
 ## Visión General
 
@@ -24,7 +24,7 @@ Usuario → https://mi-dominio.com
 
 ```
 $50–80 USD/mes → servidor con 2GB RAM, 1 CPU
-SSH → git clone → npm install → node server.js
+SSH → git clone → npm install → npm start
 ```
 
 **Pros:** Control total, costo predecible
@@ -72,7 +72,7 @@ After=network.target
 Type=simple
 User=www-data
 WorkingDirectory=/opt/game-cartesiano
-ExecStart=/usr/bin/node server.js
+ExecStart=/usr/bin/npm start
 Restart=on-failure
 RestartSec=5
 Environment=PORT=8080
@@ -88,27 +88,40 @@ WantedBy=multi-user.target
 
 #### Render.com (recomendado)
 - Free tier disponible
-- Despliegue desde GitHub con `node server.js`
+- Despliegue desde GitHub con `npm start`
 - WebSocket soportado en paid tiers ($7+/mes)
 
 ```
 1. Conectar repo en GitHub
 2. Render → New → Web Service
 3. Build command: npm install
-4. Start command: node server.js
+4. Start command: npm start
 5. Plan: Starter → $7/mes (WebSocket included)
 ```
 
-#### Railway
-- Pay-as-you-go
-- WebSocket native
-- Despliegue en 2 minutos
+#### Railway (recomendado para este proyecto)
+- Pay-as-you-go (~$5–15/mes)
+- WebSocket nativo (WSS incluido con el dominio de Railway)
+- Despliegue en minutos desde GitHub o CLI
 
 ```
-1. railway init
-2. railway add
-3. npm install → node server.js
+1. `railway init` (CLI) o conectar el repo de GitHub desde el dashboard
+2. Build command: `npm run build` (genera `dist/`)
+3. Start command: `npm start` (corre `tsx server.ts`)
+4. Variable de entorno: `NODE_ENV=production` (sirve estáticos desde `dist/`)
+5. Health check: `GET /health` ya responde `{"status":"ok","rooms":N}`
 ```
+
+**Qué absorbe Railway del checklist de producción:**
+- SSL/WSS (dominio `*.up.railway.app` con HTTPS automático)
+- Restart automático del proceso (no hace falta PM2/systemd)
+- Firewall y reverse proxy (la plataforma expone solo 443)
+
+**Qué sigue pendiente aun con Railway:**
+- Health endpoint (`/health` ya implementado en `server.ts`)
+- Monitoring (Uptime Kuma o métricas de Railway)
+- Logs estructurados (pino)
+- CI/CD (GitHub Actions → deploy automático)
 
 #### Fly.io
 - Free tier generoso (3 VMs)
@@ -135,7 +148,7 @@ RUN npm ci --omit=dev
 COPY . .
 
 EXPOSE 8080
-CMD ["node", "server.js"]
+CMD ["npm", "start"]
 ```
 
 ```bash
@@ -208,13 +221,13 @@ limit_req zone=ws_limit burst=20;
 | `MAX_PLAYERS_PER_ROOM` | `8` | Máximo jugadores por sala |
 
 ```bash
-PORT=8080 NODE_ENV=production node server.js
+PORT=8080 NODE_ENV=production npm start
 ```
 
 ### Logging
 El servidor actualmente no tiene logging estructurado. Para producción:
 ```javascript
-// server.js — agregar antes de gateway
+// server.ts — agregar antes de gateway
 import pino from 'pino';
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
@@ -231,20 +244,17 @@ logger.info({ sessionId, eventType: event.type }, 'event received');
 - **PM2** process manager (restarts automáticos):
 ```bash
 npm install -g pm2
-pm2 start server.js --name game-cartesiano
+pm2 start npm --name game-cartesiano -- start
 pm2 save
 pm2 startup
 ```
 
 ### Salud del servidor
-```bash
-# Endpoint de health check
-# Agregar en server.js:
-if (req.url === '/health') {
-  res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ status: 'ok', rooms: gateway.roomEngine.rooms.size }));
-}
+Ya implementado en `server.ts`: `GET /health` responde 200 con JSON:
+```json
+{ "status": "ok", "rooms": 0 }
 ```
+`rooms` refleja `gateway.roomEngine.roomsById.size` (salas activas en memoria).
 
 ---
 
@@ -277,7 +287,7 @@ Cliente → Router ───┤── Node (2) ← ws-gateway
 
 - [ ] Dominio configurado con SSL
 - [ ] WSS funcionando (`wss://`)
-- [ ] Health check endpoint (`/health`)
+- [x] Health check endpoint (`/health`)
 - [ ] PM2 o systemd para restart automático
 - [ ] Logs estructurados (pino)
 - [ ] Firewall restrictivo

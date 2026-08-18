@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Juego educativo de plano cartesiano",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -12,12 +15,12 @@
     "test:watch": "tsx --test --watch tests/ui/*.test.ts tests/server/*.test.ts"
   },
   "dependencies": {
+    "tsx": "^4.21.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^25.7.0",
     "@types/ws": "^8.18.1",
-    "tsx": "^4.21.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.12",
     "vite-plugin-html": "^3.2.2"

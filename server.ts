@@ -7,6 +7,8 @@ import { WsGateway } from './server/ws-gateway.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 8080);
+const NODE_ENV = process.env.NODE_ENV ?? 'development';
+const STATIC_ROOT = process.env.STATIC_ROOT ?? (NODE_ENV === 'production' ? path.join(__dirname, 'dist') : __dirname);
 
 const MIME: Record<string, string> = {
   '.html': 'text/html',
@@ -24,9 +26,16 @@ const server = http.createServer((req, res) => {
   const urlPath = req.url?.split('?')[0] ?? '/';
   if (urlPath.startsWith('/ws')) return;
 
+  if (urlPath === '/health') {
+    const body = JSON.stringify({ status: 'ok', rooms: gateway.roomEngine.roomsById.size });
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(body);
+    return;
+  }
+
   const safePath = urlPath === '/' ? 'index.html' : urlPath.replace(/^\/+/, '');
-  const filePath = path.resolve(__dirname, safePath);
-  const relativePath = path.relative(__dirname, filePath);
+  const filePath = path.resolve(STATIC_ROOT, safePath);
+  const relativePath = path.relative(STATIC_ROOT, filePath);
   if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
     res.writeHead(403);
     res.end('Forbidden');
