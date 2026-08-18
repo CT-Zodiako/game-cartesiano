@@ -159,7 +159,13 @@ export class RoomEngine {
 	createRoom(input: { hostName: string; config?: Partial<RoomConfig> }) {
 		const roomId = `room-${++this.roomSeq}`;
 		const playerId = `p-${++this.playerSeq}`;
-		const config = { ...defaultConfig, ...(input.config ?? {}) };
+		// Drop explicit undefined overrides: spreading them would clobber
+		// defaults (undefined maxX/maxY produce NaN targets, which serialize
+		// as null over JSON and make every claim invalid).
+		const overrides = Object.fromEntries(
+			Object.entries(input.config ?? {}).filter(([, v]) => v !== undefined),
+		);
+		const config = { ...defaultConfig, ...overrides };
 		const host: PlayerState = {
 			playerId,
 			name: input.hostName,

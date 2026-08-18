@@ -282,3 +282,35 @@ test("3 rounds timeout sequence ends game in FINAL", () => {
 	const room = engine.roomsById.get(created.roomId);
 	assert.equal(room?.status, ROOM_STATUS.FINAL);
 });
+
+test("partial room config keeps defaults and yields finite round targets", () => {
+	const engine = new RoomEngine({
+		now: () => 1_000,
+		setTimer: () => 1,
+		clearTimer: () => {},
+	});
+
+	// Simulates a JSON client sending only some config keys; the gateway's
+	// parseRoomConfig emits explicit undefined for the rest.
+	const created = engine.createRoom({
+		hostName: "Host",
+		config: { rounds: 1, roundDurationMs: 8_000, maxPlayers: undefined, maxX: undefined, maxY: undefined },
+	});
+	engine.joinRoom({ roomCode: created.roomCode, playerName: "P2" });
+	engine.startGame({ roomId: created.roomId, actorPlayerId: created.hostId });
+
+	const room = engine.roomsById.get(created.roomId);
+	assert.equal(room?.config.maxX, 10);
+	assert.equal(room?.config.maxY, 10);
+	assert.equal(room?.config.maxPlayers, 8);
+
+	const events = engine.getRoundStartedEvents(room!);
+	for (const { event } of events) {
+		assert.ok(Number.isFinite(event.target.x), `target.x must be finite, got ${event.target.x}`);
+		assert.ok(Number.isFinite(event.target.y), `target.y must be finite, got ${event.target.y}`);
+		// JSON wire format must never carry null coordinates (NaN serializes as null)
+		const wire = JSON.parse(JSON.stringify(event));
+		assert.equal(typeof wire.target.x, "number");
+		assert.equal(typeof wire.target.y, "number");
+	}
+});
