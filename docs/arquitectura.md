@@ -17,8 +17,8 @@
 │  │  - Header: coordenada + objetivo + tiempo         │  │
 │  │  - Menú online: crear/unirse como paneles         │  │
 │  │  - Lobby con código de sala visible               │  │
-│  │  - Ranking en vivo (lobby + final)                │  │
-│  │  - Botón "Marcar" (solo modo single-player)       │  │
+│  │  - Ranking en vivo (lobby + final)                │
+│  - Cuenta regresiva sincronizada de inicio         │  │
 │  └────────────────────────────────────────────────────┘  │
 └────────────────────────┬────────────────────────────────┘
                          │ WebSocket / HTTP
@@ -115,6 +115,7 @@ game_cartesiano/
 │                         │
 │  [Iniciar partida]     │  <- Solo visible para el host
 │  [Salir de la sala]    │
+│  Al iniciar: 3 → 2 → 1 antes de la ronda 1 │
 └─────────────────────────┘
 
 🏆 POSICIONES  EN VIVO
@@ -131,6 +132,8 @@ Al terminar la partida, aparece un modal con:
 - **Corona 👑** para el ganador
 - **Lista** del 4° en adelante
 - Tu posición resaltada si eres participante
+- Al cerrar el ranking, el host vuelve a usar el control normal **Iniciar partida**; los demás esperan al host.
+- El reinicio conserva sala, código, configuración y jugadores conectados, espera una cuenta regresiva de 3 segundos y solo entonces reinicia puntajes y vuelve a la ronda 1.
 
 ---
 
@@ -155,28 +158,28 @@ Al terminar la partida, aparece un modal con:
 |------|-------------|
 | `CREATE_ROOM` | Crear sala con config |
 | `JOIN_ROOM` | Unirse con código |
-| `START_GAME` | Iniciar partida (solo host) |
+| `START_GAME` | Solicitar inicio desde el lobby (solo host); abre una cuenta regresiva de 3 segundos |
+| `START_REMATCH` | Solicitar una partida nueva desde `FINAL` (solo host conectado, mínimo dos jugadores conectados); abre la misma cuenta regresiva |
+| `LEAVE_ROOM` | El host abandona una partida activa o finalizada |
 | `SUBMIT_CLAIM` | Enviar respuesta |
 
 ### Eventos S2C
 | Tipo | Descripción |
 |------|-------------|
-| `ROOM_SNAPSHOT` | Estado de la sala + players |
-| `ROUND_STARTED` | Nueva ronda + target |
+| `ROOM_SNAPSHOT` | Estado de la sala + players; en rematch se envía con puntajes reiniciados al iniciar la ronda |
+| `GAME_COUNTDOWN` | Inicio autoritativo sincronizado con `startsAtMs` absoluto; no hay ronda activa todavía |
+| `ROUND_STARTED` | Nueva ronda + target; en rematch inicia la ronda 1 después de la cuenta regresiva |
 | `CLAIM_ACK` | Resultado del claim |
 | `RANKING_UPDATED` | Ranking en vivo |
 | `GAME_ENDED` | Fin de partida |
+| `ROOM_CLOSED` | Partida cancelada; `reason: HOST_LEFT` devuelve a todos al matchmaking |
 
 ---
 
 ## ST-8: Scoring
 
 ```typescript
-// Online
 pointsEarned = Math.max(100, Math.floor(1000 * (1 - elapsed / roundDurationMs)))
-
-// Single-player
-hit ? score += 1 : score = Math.max(0, score - 1)
 ```
 
 ---

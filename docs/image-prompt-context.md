@@ -5,12 +5,10 @@
 ## ¿Qué es?
 
 **Game Cartesiano** es un juego educativo de plano cartesiano para estudiantes.
-La mecánica principal: se muestra una coordenada objetivo y el jugador debe
-hacer clic en el vértice correcto del tablero. Hay dos modos:
-
-- **Single-player (Modo Ejercicio):** practica solo, puntaje +1/-1
-- **Multiplayer Online:** hasta 8 jugadores compiten en tiempo real (20 s por ronda)
-  con ranking por velocidad y precisión
+La mecánica principal: los jugadores se unen a una sala online, reciben una
+coordenada objetivo y hacen clic en el vértice correcto del tablero. Hasta 8
+jugadores compiten en tiempo real (20 s por ronda) con ranking por velocidad y
+precisión.
 
 ---
 
@@ -31,11 +29,10 @@ hacer clic en el vértice correcto del tablero. Hay dos modos:
 
 ## Mecánica de juego
 
-1. El sistema genera una coordenada objetivo aleatoria (ej. `(-3, 7)`)
+1. El servidor genera una coordenada objetivo por jugador y ronda (ej. `(-3, 7)`)
 2. El jugador hace clic en el vértice del tablero que corresponde
-3. Feedback inmediato: ✓ acierto o ✗ error
-4. En modo online: el servidor valida con temporizador oficial
-   - Fórmula de score: `Math.max(100, Math.floor(1000 * (1 - elapsed / roundDurationMs)))`
+3. El servidor valida el claim con su temporizador oficial y devuelve feedback
+4. Fórmula de score: `Math.max(100, Math.floor(1000 * (1 - elapsed / roundDurationMs)))`
 5. El objetivo debe verse también como marcador en el tablero, no solo como texto en el HUD
 
 ---

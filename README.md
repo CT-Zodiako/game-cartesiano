@@ -25,17 +25,9 @@ tests/                # Tests unitarios
 npm install
 ```
 
-### Desarrollo (modo single-player)
+### Desarrollo (multijugador online)
 
-```bash
-npm run dev
-```
-
-Esto levanta Vite en `http://localhost:5173` (o el puerto disponible).
-
-### Modo Online (multiplayer)
-
-Para jugar online necesitás dos terminales:
+Para jugar necesitás dos terminales:
 
 **Terminal 1 - Servidor:**
 
@@ -51,8 +43,7 @@ Servidor en `http://localhost:8080` y `ws://localhost:8080/ws`
 npm run dev
 ```
 
-Luego agregá `?online=1` a la URL, por ejemplo:
-`http://localhost:5173/?online=1`
+Abrí `http://localhost:5173` (o el puerto disponible) para crear o unirte a una sala.
 
 ### Tests
 
@@ -64,18 +55,10 @@ Esto ejecuta los tests de UI y servidor (`tests/ui/*.test.ts` y `tests/server/*.
 
 ## Cómo jugar
 
-### Modo single-player
-
-1. Mirar la coordenada objetivo que aparece en pantalla
-2. Hacer click en una celda del tablero para elegir la posición
-3. Presionar **Comprobar** para validar
-4. Repetir para sumar puntaje
-
-### Modo online
-
-1. Ir a tab **Online**
-2. Configurar (opcional): jugadores máx, rondas, segundos por ronda, coordenadas máx
-3. El host crea una sala y comparte el código
-4. Otros jugadores se unen con el código
-5. El host inicia la partida
-6. Todos ven el mismo objetivo y compiten por quién responde más rápido
+1. Configurar (opcional): jugadores máx, rondas, segundos por ronda, coordenadas máx
+2. El host crea una sala y comparte el código
+3. Otros jugadores se unen con el código
+4. El host inicia la partida; todos reciben una cuenta regresiva sincronizada de 3 → 2 → 1 antes de la ronda 1.
+5. Todos ven el mismo objetivo y compiten por quién responde más rápido.
+6. Al terminar, el ranking final se cierra primero. Después, el host vuelve a ver el control normal **Iniciar partida**; este conserva sala, código, configuración y jugadores conectados, y usa una nueva cuenta regresiva antes de reiniciar puntajes y volver a la ronda 1. Los demás jugadores esperan al host.
+7. Si el host sale durante la cuenta regresiva, una partida activa o tras el ranking final, la sala se cancela para todos. Si un jugador no host sale durante la cuenta regresiva, esta se cancela y la sala vuelve al lobby o conserva su ranking final.

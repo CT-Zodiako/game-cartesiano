@@ -75,6 +75,18 @@ export interface C2SStartGame {
 	roomId: string;
 }
 
+export interface C2SStartRematch {
+	type: "START_REMATCH";
+	reqId: string;
+	roomId: string;
+}
+
+export interface C2SLeaveRoom {
+	type: "LEAVE_ROOM";
+	reqId: string;
+	roomId: string;
+}
+
 export interface C2SSubmitClaim {
 	type: "SUBMIT_CLAIM";
 	reqId: string;
@@ -94,6 +106,8 @@ export type C2SMessage =
 	| C2SCreateRoom
 	| C2SJoinRoom
 	| C2SStartGame
+	| C2SStartRematch
+	| C2SLeaveRoom
 	| C2SSubmitClaim
 	| C2SPing;
 
@@ -108,6 +122,14 @@ export interface RoomSnapshotEvent {
 	serverTsMs: number;
 	roomState: RoomState;
 	yourPlayerId?: string;
+}
+
+export interface GameCountdownEvent {
+	type: "GAME_COUNTDOWN";
+	reqId: string;
+	eventId: string;
+	serverTsMs: number;
+	startsAtMs: number;
 }
 
 export interface RoundStartedEvent {
@@ -168,6 +190,16 @@ export interface GameEndedEvent {
 	eventId: string;
 	serverTsMs: number;
 	finalRanking: RankingEntry[];
+	roomState: RoomState;
+}
+
+export interface RoomClosedEvent {
+	type: "ROOM_CLOSED";
+	reqId: string;
+	eventId: string;
+	serverTsMs: number;
+	reason: "HOST_LEFT";
+	message: string;
 }
 
 export interface ErrorEvent {
@@ -188,12 +220,14 @@ export interface PongEvent {
 
 export type S2CEvent =
 	| RoomSnapshotEvent
+	| GameCountdownEvent
 	| RoundStartedEvent
 	| ClaimAckEvent
 	| LateAlertEvent
 	| RankingUpdatedEvent
 	| RoundEndedEvent
 	| GameEndedEvent
+	| RoomClosedEvent
 	| ErrorEvent
 	| PongEvent;
 

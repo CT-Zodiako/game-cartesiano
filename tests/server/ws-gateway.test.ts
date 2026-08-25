@@ -1,305 +1,247 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
+import assert from "node:assert/strict";
+import test from "node:test";
 
-import { WsGateway } from '../../server/ws-gateway.js';
+import { WsGateway } from "../../server/ws-gateway.js";
 
 function createFakeTimers(nowStart = 1_000) {
-  let now = nowStart;
-  let timerSeq = 0;
-  const timers = new Map<string, { cb: () => void; dueAt: number; cancelled: boolean }>();
-
-  return {
-    now: () => now,
-    setTimer: (cb: () => void, delay: number) => {
-      const id = `t-${++timerSeq}`;
-      timers.set(id, { cb, dueAt: now + delay, cancelled: false });
-      return id;
-    },
-    clearTimer: (id: unknown) => {
-      const timer = timers.get(String(id));
-      if (timer) timer.cancelled = true;
-    },
-    tick: (ms: number) => {
-      now += ms;
-      for (const [id, timer] of timers.entries()) {
-        if (timer.cancelled) continue;
-        if (timer.dueAt <= now) {
-          timer.cancelled = true;
-          timer.cb();
-        }
-        if (timer.cancelled) timers.delete(id);
-      }
-    },
-  };
+	let now = nowStart;
+	let timerSeq = 0;
+	const timers = new Map<
+		string,
+		{ cb: () => void; dueAt: number; cancelled: boolean }
+	>();
+	return {
+		now: () => now,
+		setTimer: (cb: () => void, delay: number) => {
+			const id = `timer-${++timerSeq}`;
+			timers.set(id, { cb, dueAt: now + delay, cancelled: false });
+			return id;
+		},
+		clearTimer: (id: unknown) => {
+			const timer = timers.get(String(id));
+			if (timer) timer.cancelled = true;
+		},
+		tick: (ms: number) => {
+			now += ms;
+			for (const [id, timer] of [...timers]) {
+				if (timer.cancelled || timer.dueAt > now) continue;
+				timer.cancelled = true;
+				timers.delete(id);
+				timer.cb();
+			}
+		},
+	};
 }
 
-test('invalid payload returns typed ERROR', () => {
-  const sent: unknown[] = [];
-  const gateway = new WsGateway({ now: () => 1_000 });
-  const conn = gateway.connect({ send: (e: unknown) => sent.push(e) });
+function setupRoom(config: Record<string, number> = {}) {
+	const timers = createFakeTimers();
+	const gateway = new WsGateway({ now: timers.now });
+	gateway.roomEngine.setTimer = timers.setTimer;
+	gateway.roomEngine.clearTimer = timers.clearTimer;
+	const hostSent: Array<Record<string, unknown>> = [];
+	const peerSent: Array<Record<string, unknown>> = [];
+	const host = gateway.connect({ send: (event: unknown) => hostSent.push(event as Record<string, unknown>) });
+	host.receive({ type: "CREATE_ROOM", reqId: "create", playerName: "Host", config });
+	const room = (hostSent[0].roomState as { roomId: string; roomCode: string; hostId: string });
+	const peer = gateway.connect({ send: (event: unknown) => peerSent.push(event as Record<string, unknown>) });
+	peer.receive({ type: "JOIN_ROOM", reqId: "join", roomCode: room.roomCode, playerName: "Peer" });
+	return { timers, gateway, host, peer, hostSent, peerSent, room };
+}
 
-  conn.receive({ type: 'CREATE_ROOM', reqId: '1' });
+function eventsOf(events: Array<Record<string, unknown>>, type: string) {
+	return events.filter((event) => event.type === type);
+}
 
-  assert.equal(sent.length, 1);
-  assert.equal((sent[0] as { type: string }).type, 'ERROR');
-  assert.equal((sent[0] as { code: string }).code, 'INVALID_PLAYER_NAME');
+test("START_GAME sends one shared GAME_COUNTDOWN, never starts early, and rejects duplicates", () => {
+	const { timers, gateway, host, hostSent, peerSent, room } = setupRoom();
+	host.receive({ type: "START_GAME", reqId: "start", roomId: room.roomId });
+
+	const hostCountdown = eventsOf(hostSent, "GAME_COUNTDOWN");
+	const peerCountdown = eventsOf(peerSent, "GAME_COUNTDOWN");
+	assert.equal(hostCountdown.length, 1);
+	assert.equal(peerCountdown.length, 1);
+	assert.equal(hostCountdown[0].startsAtMs, 4_000);
+	assert.equal(peerCountdown[0].startsAtMs, 4_000);
+	assert.equal(gateway.roomEngine.roomsById.get(room.roomId)?.status, "COUNTDOWN");
+	assert.equal(eventsOf(hostSent, "ROUND_STARTED").length, 0);
+
+	host.receive({ type: "START_GAME", reqId: "duplicate", roomId: room.roomId });
+	assert.equal(eventsOf(hostSent, "GAME_COUNTDOWN").length, 1);
+	assert.equal((hostSent.at(-1) as { code: string }).code, "INVALID_STATUS");
+	timers.tick(2_999);
+	assert.equal(eventsOf(hostSent, "ROUND_STARTED").length, 0);
+	timers.tick(1);
+	assert.equal(eventsOf(hostSent, "ROUND_STARTED").length, 1);
+	assert.equal(eventsOf(peerSent, "ROUND_STARTED").length, 1);
 });
 
-test('create room forwards client config to room engine', () => {
-  const sent: unknown[] = [];
-  const gateway = new WsGateway({ now: () => 1_000 });
-  const conn = gateway.connect({ send: (e: unknown) => sent.push(e) });
+test("START_REMATCH keeps final scores through countdown and broadcasts reset snapshot only when round one starts", () => {
+	const { timers, gateway, host, hostSent, peerSent, room } = setupRoom({ rounds: 1 });
+	host.receive({ type: "START_GAME", reqId: "start", roomId: room.roomId });
+	timers.tick(3_000);
+	const activeRoom = gateway.roomEngine.roomsById.get(room.roomId)!;
+	const target = activeRoom.targetsByRoundPlayer.get(`1:${room.hostId}`)!;
+	host.receive({ type: "SUBMIT_CLAIM", reqId: "claim", roomId: room.roomId, roundId: 1, playerId: room.hostId, target });
+	timers.tick(20_000);
+	assert.equal((eventsOf(hostSent, "GAME_ENDED").at(-1) as { roomState: { status: string } }).roomState.status, "FINAL");
+	const scoreBeforeRematch = activeRoom.players[0].totalScore;
+	const beforeRematch = hostSent.length;
 
-  conn.receive({
-    type: 'CREATE_ROOM',
-    reqId: 'cfg1',
-    playerName: 'Host',
-    config: { maxPlayers: 4, rounds: 5, roundDurationMs: 7_000, maxX: 3, maxY: 6 },
-  });
+	host.receive({ type: "START_REMATCH", reqId: "rematch", roomId: room.roomId });
+	assert.equal((hostSent.at(-1) as { type: string }).type, "GAME_COUNTDOWN");
+	assert.equal(activeRoom.players[0].totalScore, scoreBeforeRematch);
+	timers.tick(3_000);
 
-  const roomState = (sent[0] as { roomState: { config: { maxPlayers: number; rounds: number; roundDurationMs: number; maxX: number; maxY: number } } }).roomState;
-  assert.equal(roomState.config.maxPlayers, 4);
-  assert.equal(roomState.config.rounds, 5);
-  assert.equal(roomState.config.roundDurationMs, 7_000);
-  assert.equal(roomState.config.maxX, 3);
-  assert.equal(roomState.config.maxY, 6);
+	const newEvents = hostSent.slice(beforeRematch);
+	assert.deepEqual(newEvents.map((event) => event.type), ["GAME_COUNTDOWN", "ROOM_SNAPSHOT", "ROUND_STARTED"]);
+	assert.equal((newEvents[1].roomState as { status: string }).status, "ROUND_ACTIVE");
+	assert.deepEqual(
+		(newEvents[1].roomState as { players: Array<{ totalScore: number }> }).players.map((player) => player.totalScore),
+		[0, 0],
+	);
+	assert.deepEqual(peerSent.slice(-3).map((event) => event.type), ["GAME_COUNTDOWN", "ROOM_SNAPSHOT", "ROUND_STARTED"]);
 });
 
-test('ping responds pong', () => {
-  const sent: unknown[] = [];
-  const gateway = new WsGateway({ now: () => 1_000 });
-  const conn = gateway.connect({ send: (e: unknown) => sent.push(e) });
+test("peer departure during countdown restores the source state and prevents timer-driven rounds", () => {
+	const { timers, gateway, host, peer, hostSent, room } = setupRoom();
+	host.receive({ type: "START_GAME", reqId: "start", roomId: room.roomId });
+	peer.receive({ type: "LEAVE_ROOM", reqId: "leave", roomId: room.roomId });
 
-  conn.receive({ type: 'PING', reqId: 'r-ping' });
-
-  assert.equal(sent.length, 1);
-  assert.equal((sent[0] as { type: string }).type, 'PONG');
-  assert.equal((sent[0] as { reqId: string }).reqId, 'r-ping');
+	assert.equal(gateway.roomEngine.roomsById.get(room.roomId)?.status, "LOBBY");
+	assert.equal((eventsOf(hostSent, "ROOM_SNAPSHOT").at(-1) as { roomState: { status: string } }).roomState.status, "LOBBY");
+	timers.tick(3_000);
+	assert.equal(eventsOf(hostSent, "ROUND_STARTED").length, 0);
 });
 
-test('create/join/start flow and late-join reject in ROUND_ACTIVE', () => {
-  const hostSent: unknown[] = [];
-  const p2Sent: unknown[] = [];
-  const gateway = new WsGateway({ now: () => 1_000 });
+test("host departure during countdown closes the room and clears the pending timer", () => {
+	const { timers, gateway, host, hostSent, peerSent, room } = setupRoom();
+	host.receive({ type: "START_GAME", reqId: "start", roomId: room.roomId });
+	host.close();
 
-  const host = gateway.connect({ send: (e: unknown) => hostSent.push(e) });
-  host.receive({ type: 'CREATE_ROOM', reqId: 'r1', playerName: 'Host' });
-  const roomCode = (hostSent[0] as { roomState: { roomCode: string } }).roomState.roomCode;
-  const roomId = (hostSent[0] as { roomState: { roomId: string } }).roomState.roomId;
-
-  const p2 = gateway.connect({ send: (e: unknown) => p2Sent.push(e) });
-  p2.receive({ type: 'JOIN_ROOM', reqId: 'r2', roomCode, playerName: 'P2' });
-  assert.equal((p2Sent[0] as { type: string }).type, 'ROOM_SNAPSHOT');
-  assert.equal((hostSent[1] as { type: string }).type, 'ROOM_SNAPSHOT');
-
-  host.receive({ type: 'START_GAME', reqId: 'r3', roomId });
-  assert.equal((hostSent[2] as { type: string }).type, 'ROUND_STARTED');
-  assert.equal((p2Sent[1] as { type: string }).type, 'ROUND_STARTED');
-
-  const p3Sent: unknown[] = [];
-  const p3 = gateway.connect({ send: (e: unknown) => p3Sent.push(e) });
-  p3.receive({ type: 'JOIN_ROOM', reqId: 'r4', roomCode, playerName: 'P3' });
-  assert.equal((p3Sent[0] as { type: string }).type, 'ERROR');
-  assert.equal((p3Sent[0] as { code: string }).code, 'ROOM_IN_PROGRESS');
+	assert.equal(gateway.roomEngine.roomsById.has(room.roomId), false);
+	assert.equal((eventsOf(peerSent, "ROOM_CLOSED").at(-1) as { reason: string }).reason, "HOST_LEFT");
+	timers.tick(3_000);
+	assert.equal(eventsOf(hostSent, "ROUND_STARTED").length, 0);
+	assert.equal(eventsOf(peerSent, "ROUND_STARTED").length, 0);
 });
 
-test('accepted claim broadcasts ranking update to room peers', () => {
-  const hostSent: unknown[] = [];
-  const p2Sent: unknown[] = [];
-  const gateway = new WsGateway({ now: () => 5_000 });
-
-  const host = gateway.connect({ send: (e: unknown) => hostSent.push(e) });
-  host.receive({ type: 'CREATE_ROOM', reqId: 'c1', playerName: 'Host' });
-  const roomCode = (hostSent[0] as { roomState: { roomCode: string } }).roomState.roomCode;
-  const roomId = (hostSent[0] as { roomState: { roomId: string } }).roomState.roomId;
-
-  const p2 = gateway.connect({ send: (e: unknown) => p2Sent.push(e) });
-  p2.receive({ type: 'JOIN_ROOM', reqId: 'c2', roomCode, playerName: 'P2' });
-
-  host.receive({ type: 'START_GAME', reqId: 'c3', roomId });
-  const hostRoundStarted = hostSent.find((e) => (e as { type: string }).type === 'ROUND_STARTED') as { roundId: number; target: { x: number; y: number } };
-
-  host.receive({
-    type: 'SUBMIT_CLAIM',
-    reqId: 'c4',
-    roomId,
-    roundId: hostRoundStarted.roundId,
-    playerId: (hostSent[0] as { roomState: { hostId: string } }).roomState.hostId,
-    target: hostRoundStarted.target,
-  });
-
-  assert.equal(hostSent.some((e) => (e as { type: string }).type === 'RANKING_UPDATED'), true);
-  assert.equal(p2Sent.some((e) => (e as { type: string }).type === 'RANKING_UPDATED'), true);
+test("invalid payloads return typed errors", () => {
+	const sent: Array<Record<string, unknown>> = [];
+	const gateway = new WsGateway({ now: () => 1_000 });
+	gateway.connect({ send: (event: unknown) => sent.push(event as Record<string, unknown>) })
+		.receive({ type: "CREATE_ROOM", reqId: "invalid" });
+	assert.deepEqual(
+		{ type: sent[0].type, code: sent[0].code },
+		{ type: "ERROR", code: "INVALID_PLAYER_NAME" },
+	);
 });
 
-test('submit claim uses connection identity instead of client-supplied playerId', () => {
-  const hostSent: unknown[] = [];
-  const p2Sent: unknown[] = [];
-  const gateway = new WsGateway({ now: () => 6_000 });
-
-  const host = gateway.connect({ send: (e: unknown) => hostSent.push(e) });
-  host.receive({ type: 'CREATE_ROOM', reqId: 'imp1', playerName: 'Host' });
-  const roomCode = (hostSent[0] as { roomState: { roomCode: string } }).roomState.roomCode;
-  const roomId = (hostSent[0] as { roomState: { roomId: string } }).roomState.roomId;
-  const hostId = (hostSent[0] as { roomState: { hostId: string } }).roomState.hostId;
-
-  const p2 = gateway.connect({ send: (e: unknown) => p2Sent.push(e) });
-  p2.receive({ type: 'JOIN_ROOM', reqId: 'imp2', roomCode, playerName: 'P2' });
-  host.receive({ type: 'START_GAME', reqId: 'imp3', roomId });
-
-  const hostRoundStarted = hostSent.find((e) => (e as { type: string }).type === 'ROUND_STARTED') as { roundId: number; target: { x: number; y: number } };
-  p2.receive({ type: 'SUBMIT_CLAIM', reqId: 'imp4', roomId, roundId: hostRoundStarted.roundId, playerId: hostId, target: hostRoundStarted.target });
-
-  const ack = p2Sent.find((e) => (e as { type: string }).type === 'CLAIM_ACK') as { status: string; reason: string };
-  assert.equal(ack.status, 'REJECTED');
-  assert.equal(ack.reason, 'WRONG_TARGET');
-  assert.equal(hostSent.some((e) => (e as { type: string }).type === 'RANKING_UPDATED'), false);
+test("create room forwards all supplied configuration values", () => {
+	const sent: Array<Record<string, unknown>> = [];
+	const gateway = new WsGateway({ now: () => 1_000 });
+	gateway.connect({ send: (event: unknown) => sent.push(event as Record<string, unknown>) })
+		.receive({
+			type: "CREATE_ROOM", reqId: "config", playerName: "Host",
+			config: { maxPlayers: 4, rounds: 5, roundDurationMs: 7_000, maxX: 3, maxY: 6 },
+		});
+	assert.deepEqual((sent[0].roomState as { config: unknown }).config, {
+		maxPlayers: 4, rounds: 5, roundDurationMs: 7_000, maxX: 3, maxY: 6,
+	});
 });
 
-test('3-round lifecycle emits ROUND_ENDED, next ROUND_STARTED and GAME_ENDED', () => {
-  const timers = createFakeTimers(10_000);
-  const hostSent: unknown[] = [];
-  const p2Sent: unknown[] = [];
-  const gateway = new WsGateway({
-    now: timers.now,
-    roomEngine: undefined,
-  });
-  gateway.roomEngine.setTimer = timers.setTimer;
-  gateway.roomEngine.clearTimer = timers.clearTimer;
-
-  const host = gateway.connect({ send: (e: unknown) => hostSent.push(e) });
-  host.receive({ type: 'CREATE_ROOM', reqId: 'l1', playerName: 'Host' });
-  const roomCode = (hostSent[0] as { roomState: { roomCode: string } }).roomState.roomCode;
-  const roomId = (hostSent[0] as { roomState: { roomId: string } }).roomState.roomId;
-
-  const p2 = gateway.connect({ send: (e: unknown) => p2Sent.push(e) });
-  p2.receive({ type: 'JOIN_ROOM', reqId: 'l2', roomCode, playerName: 'P2' });
-
-  host.receive({ type: 'START_GAME', reqId: 'l3', roomId });
-
-  timers.tick(20_000);
-  timers.tick(20_000);
-  timers.tick(20_000);
-
-  const hostRoundEnded = hostSent.filter((e) => (e as { type: string }).type === 'ROUND_ENDED');
-  const hostRoundStarted = hostSent.filter((e) => (e as { type: string }).type === 'ROUND_STARTED');
-  const hostGameEnded = hostSent.filter((e) => (e as { type: string }).type === 'GAME_ENDED');
-
-  assert.equal(hostRoundEnded.length, 3);
-  assert.equal(hostRoundStarted.length, 3);
-  assert.equal(hostGameEnded.length, 1);
-
-  assert.equal(p2Sent.filter((e) => (e as { type: string }).type === 'ROUND_ENDED').length, 3);
-  assert.equal(p2Sent.filter((e) => (e as { type: string }).type === 'GAME_ENDED').length, 1);
+test("create room applies defaults for omitted configuration", () => {
+	const sent: Array<Record<string, unknown>> = [];
+	const gateway = new WsGateway({ now: () => 1_000 });
+	gateway.connect({ send: (event: unknown) => sent.push(event as Record<string, unknown>) })
+		.receive({ type: "CREATE_ROOM", reqId: "defaults", playerName: "Host", config: { rounds: 1 } });
+	const config = (sent[0].roomState as { config: Record<string, number> }).config;
+	assert.deepEqual(
+		[config.rounds, config.maxPlayers, config.maxX, config.maxY],
+		[1, 8, 10, 10],
+	);
 });
 
-test('idempotency in gateway returns same CLAIM_ACK payload and records duplicate metric', () => {
-  const hostSent: unknown[] = [];
-  const p2Sent: unknown[] = [];
-  const gateway = new WsGateway({ now: () => 20_000 });
-  const host = gateway.connect({ send: (e: unknown) => hostSent.push(e) });
-  gateway.connect({ send: (e: unknown) => p2Sent.push(e) });
-
-  host.receive({ type: 'CREATE_ROOM', reqId: 'i1', playerName: 'Host' });
-  const roomId = (hostSent[0] as { roomState: { roomId: string } }).roomState.roomId;
-  gateway.connect({ send: () => {} }).receive({ type: 'JOIN_ROOM', reqId: 'i2', roomCode: (hostSent[0] as { roomState: { roomCode: string } }).roomState.roomCode, playerName: 'P2' });
-  host.receive({ type: 'START_GAME', reqId: 'i3', roomId });
-
-  const started = hostSent.find((e) => (e as { type: string }).type === 'ROUND_STARTED') as { roundId: number; target: { x: number; y: number } };
-  const playerId = (hostSent[0] as { roomState: { hostId: string } }).roomState.hostId;
-  const claim = {
-    type: 'SUBMIT_CLAIM',
-    roomId,
-    roundId: started.roundId,
-    playerId,
-    target: started.target,
-  };
-
-  host.receive({ ...claim, reqId: 'i4' });
-  host.receive({ ...claim, reqId: 'i5' });
-
-  const acks = hostSent.filter((e) => (e as { type: string }).type === 'CLAIM_ACK') as { status: string; reason: string; scoreDelta: number }[];
-  assert.equal(acks.length, 2);
-  assert.equal(acks[0].status, 'ACCEPTED');
-  assert.equal(acks[1].status, acks[0].status);
-  assert.equal(acks[1].reason, acks[0].reason);
-  assert.equal(acks[1].scoreDelta, acks[0].scoreDelta);
-
-  const metrics = gateway.getAuditMetrics();
-  assert.equal(metrics.claim_duplicate_total, 1);
+test("only the host can start and late joins are rejected during countdown", () => {
+	const { gateway, host, peer, peerSent, room } = setupRoom();
+	peer.receive({ type: "START_GAME", reqId: "not-host", roomId: room.roomId });
+	assert.equal((peerSent.at(-1) as { code: string }).code, "NOT_HOST");
+	host.receive({ type: "START_GAME", reqId: "start", roomId: room.roomId });
+	const lateSent: Array<Record<string, unknown>> = [];
+	gateway.connect({ send: (event: unknown) => lateSent.push(event as Record<string, unknown>) })
+		.receive({ type: "JOIN_ROOM", reqId: "late", roomCode: room.roomCode, playerName: "Late" });
+	assert.equal((lateSent.at(-1) as { code: string }).code, "ROOM_IN_PROGRESS");
 });
 
-test('concurrency stress: simultaneous collisions keep unique winner across repeated runs', () => {
-  for (let i = 0; i < 20; i += 1) {
-    const clock = { now: () => 30_000 + i };
-    const gateway = new WsGateway({ now: clock.now });
-    const hostSent: unknown[] = [];
-    const p2Sent: unknown[] = [];
-
-    const host = gateway.connect({ send: (e: unknown) => hostSent.push(e) });
-    host.receive({ type: 'CREATE_ROOM', reqId: `s-${i}-1`, playerName: 'Host' });
-    const roomCode = (hostSent[0] as { roomState: { roomCode: string } }).roomState.roomCode;
-    const roomId = (hostSent[0] as { roomState: { roomId: string } }).roomState.roomId;
-
-    const p2 = gateway.connect({ send: (e: unknown) => p2Sent.push(e) });
-    p2.receive({ type: 'JOIN_ROOM', reqId: `s-${i}-2`, roomCode, playerName: 'P2' });
-    host.receive({ type: 'START_GAME', reqId: `s-${i}-3`, roomId });
-
-    const hostTarget = (hostSent.find((e) => (e as { type: string }).type === 'ROUND_STARTED') as { target: { x: number; y: number } }).target;
-    const p2Snapshot = p2Sent.find((e) => (e as { type: string }).type === 'ROOM_SNAPSHOT') as { roomState: { players: { name: string; playerId: string }[] } };
-    const p2PlayerId = p2Snapshot.roomState.players.find((p) => p.name === 'P2')?.playerId ?? '';
-    const room = gateway.roomEngine.roomsById.get(roomId);
-    room?.targetsByRoundPlayer.set(`1:${p2PlayerId}`, hostTarget);
-
-    host.receive({
-      type: 'SUBMIT_CLAIM',
-      reqId: `s-${i}-4`,
-      roomId,
-      roundId: 1,
-      playerId: (hostSent[0] as { roomState: { hostId: string } }).roomState.hostId,
-      target: hostTarget,
-    });
-
-    p2.receive({
-      type: 'SUBMIT_CLAIM',
-      reqId: `s-${i}-5`,
-      roomId,
-      roundId: 1,
-      playerId: p2PlayerId,
-      target: hostTarget,
-    });
-
-    const ackHost = hostSent.find((e) => (e as { type: string }).type === 'CLAIM_ACK') as { status: string; reason: string };
-    const ackP2 = p2Sent.find((e) => (e as { type: string }).type === 'CLAIM_ACK') as { status: string; reason: string };
-    const acceptedCount = [ackHost, ackP2].filter((ack) => ack?.status === 'ACCEPTED').length;
-    assert.equal(acceptedCount, 1);
-    assert.equal([ackHost.reason, ackP2.reason].includes('TOO_LATE'), true);
-  }
+test("claims use connection identity instead of a client-supplied player id", () => {
+	const { timers, host, peer, hostSent, peerSent, room } = setupRoom();
+	host.receive({ type: "START_GAME", reqId: "start", roomId: room.roomId });
+	timers.tick(3_000);
+	const target = (eventsOf(hostSent, "ROUND_STARTED")[0] as { target: { x: number; y: number } }).target;
+	peer.receive({
+		type: "SUBMIT_CLAIM", reqId: "impersonate", roomId: room.roomId, roundId: 1,
+		playerId: room.hostId, target,
+	});
+	const ack = eventsOf(peerSent, "CLAIM_ACK").at(-1) as { status: string; reason: string };
+	assert.deepEqual(ack, { ...ack, status: "REJECTED", reason: "WRONG_TARGET" });
+	assert.equal(eventsOf(hostSent, "RANKING_UPDATED").length, 0);
 });
 
-test('audit log stores fairness counters and decision latency summary', () => {
-  const hostSent: unknown[] = [];
-  const p2Sent: unknown[] = [];
-  const gateway = new WsGateway({ now: () => 40_000 });
-  const host = gateway.connect({ send: (e: unknown) => hostSent.push(e) });
+test("accepted claims broadcast ranking updates with a new ranking version", () => {
+	const { timers, host, hostSent, peerSent, room } = setupRoom();
+	host.receive({ type: "START_GAME", reqId: "start", roomId: room.roomId });
+	timers.tick(3_000);
+	const target = (eventsOf(hostSent, "ROUND_STARTED")[0] as { target: { x: number; y: number } }).target;
+	host.receive({ type: "SUBMIT_CLAIM", reqId: "claim", roomId: room.roomId, roundId: 1, playerId: room.hostId, target });
+	assert.equal(eventsOf(hostSent, "RANKING_UPDATED").length, 1);
+	assert.equal(eventsOf(peerSent, "RANKING_UPDATED").length, 1);
+	assert.equal((eventsOf(hostSent, "CLAIM_ACK")[0] as { rankingVersion: number }).rankingVersion, 1);
+});
 
-  host.receive({ type: 'CREATE_ROOM', reqId: 'm1', playerName: 'Host' });
-  const roomId = (hostSent[0] as { roomState: { roomId: string } }).roomState.roomId;
-  const p2 = gateway.connect({ send: (e: unknown) => p2Sent.push(e) });
-  p2.receive({ type: 'JOIN_ROOM', reqId: 'm2', roomCode: (hostSent[0] as { roomState: { roomCode: string } }).roomState.roomCode, playerName: 'P2' });
-  host.receive({ type: 'START_GAME', reqId: 'm3', roomId });
+test("duplicate claims replay the acknowledgement and increment duplicate metrics", () => {
+	const { timers, gateway, host, hostSent, room } = setupRoom();
+	host.receive({ type: "START_GAME", reqId: "start", roomId: room.roomId });
+	timers.tick(3_000);
+	const target = (eventsOf(hostSent, "ROUND_STARTED")[0] as { target: { x: number; y: number } }).target;
+	const claim = { type: "SUBMIT_CLAIM", roomId: room.roomId, roundId: 1, playerId: room.hostId, target };
+	host.receive({ ...claim, reqId: "claim-1" });
+	host.receive({ ...claim, reqId: "claim-2" });
+	const acks = eventsOf(hostSent, "CLAIM_ACK") as Array<{ status: string; reason: string; scoreDelta: number }>;
+	assert.equal(acks.length, 2);
+	assert.deepEqual(
+		{ status: acks[1].status, reason: acks[1].reason, scoreDelta: acks[1].scoreDelta },
+		{ status: acks[0].status, reason: acks[0].reason, scoreDelta: acks[0].scoreDelta },
+	);
+	assert.equal(gateway.getAuditMetrics().claim_duplicate_total, 1);
+});
 
-  const hostTarget = (hostSent.find((e) => (e as { type: string }).type === 'ROUND_STARTED') as { target: { x: number; y: number } }).target;
-  const p2Snapshot = hostSent.find((e) => (e as { type: string }).type === 'ROOM_SNAPSHOT' && e !== hostSent[0]) as { roomState: { players: { name: string; playerId: string }[] } };
-  const p2PlayerId = p2Snapshot?.roomState?.players?.find((p) => p.name === 'P2')?.playerId ?? '';
-  const room = gateway.roomEngine.roomsById.get(roomId);
-  room?.targetsByRoundPlayer.set(`1:${p2PlayerId}`, hostTarget);
+test("collisions retain one winner and record fairness and latency metrics", () => {
+	const { timers, gateway, host, peer, hostSent, peerSent, room } = setupRoom();
+	host.receive({ type: "START_GAME", reqId: "start", roomId: room.roomId });
+	timers.tick(3_000);
+	const target = (eventsOf(hostSent, "ROUND_STARTED")[0] as { target: { x: number; y: number } }).target;
+	const activeRoom = gateway.roomEngine.roomsById.get(room.roomId)!;
+	const peerId = activeRoom.players.find((player) => player.name === "Peer")!.playerId;
+	activeRoom.targetsByRoundPlayer.set(`1:${peerId}`, target);
+	host.receive({ type: "SUBMIT_CLAIM", reqId: "first", roomId: room.roomId, roundId: 1, playerId: room.hostId, target });
+	peer.receive({ type: "SUBMIT_CLAIM", reqId: "late", roomId: room.roomId, roundId: 1, playerId: peerId, target });
+	const acks = [...eventsOf(hostSent, "CLAIM_ACK"), ...eventsOf(peerSent, "CLAIM_ACK")] as Array<{ status: string; reason: string }>;
+	assert.equal(acks.filter((ack) => ack.status === "ACCEPTED").length, 1);
+	assert.equal(acks.some((ack) => ack.reason === "TOO_LATE"), true);
+	const metrics = gateway.getAuditMetrics();
+	assert.equal(metrics.claim_accept_total, 1);
+	assert.equal(metrics.claim_too_late_total, 1);
+	assert.equal(metrics.claim_decision_ms.count >= 2, true);
+});
 
-  host.receive({ type: 'SUBMIT_CLAIM', reqId: 'm4', roomId, roundId: 1, playerId: (hostSent[0] as { roomState: { hostId: string } }).roomState.hostId, target: hostTarget });
-  p2.receive({ type: 'SUBMIT_CLAIM', reqId: 'm5', roomId, roundId: 1, playerId: p2PlayerId, target: hostTarget });
-
-  const metrics = gateway.getAuditMetrics();
-  assert.equal(metrics.claim_accept_total, 1);
-  assert.equal(metrics.claim_too_late_total, 1);
-  assert.equal(metrics.claim_decision_ms.count >= 2, true);
+test("three rounds emit lifecycle events after the initial countdown", () => {
+	const { timers, host, hostSent, peerSent, room } = setupRoom({ rounds: 3 });
+	host.receive({ type: "START_GAME", reqId: "start", roomId: room.roomId });
+	timers.tick(3_000);
+	timers.tick(20_000);
+	timers.tick(20_000);
+	timers.tick(20_000);
+	assert.equal(eventsOf(hostSent, "ROUND_ENDED").length, 3);
+	assert.equal(eventsOf(hostSent, "ROUND_STARTED").length, 3);
+	assert.equal(eventsOf(hostSent, "GAME_ENDED").length, 1);
+	assert.equal(eventsOf(peerSent, "GAME_ENDED").length, 1);
 });

@@ -47,6 +47,10 @@ export interface RoomState {
 	scoreDeltaByRoundPlayer: Map<string, number>;
 	claimAcksByKey: Map<string, ClaimAck>;
 	rankingVersion: number;
+	countdownStartsAtMs: number;
+	countdownSourceStatus?: typeof ROOM_STATUS.LOBBY | typeof ROOM_STATUS.FINAL;
+	countdownTimerId?: unknown;
+	countdownVersion: number;
 	roundTimerId?: unknown;
 }
 
@@ -68,10 +72,22 @@ export type CloseRoundResult =
 			results: RoundResultEntry[];
 	  };
 
+export type RoomClosureReason = "HOST_LEFT";
+
+export type AbortRoomResult =
+	| { ok: false; code: "ROOM_NOT_FOUND" | "NOT_HOST" | "ROOM_NOT_ACTIVE" }
+	| { ok: true; reason: RoomClosureReason };
+
 export interface RoundTimeoutEvent {
 	room: RoomState;
 	closingRoundId: number;
 	result: CloseRoundResult;
+}
+
+export interface CountdownTimeoutEvent {
+	room: RoomState;
+	started: boolean;
+	resetScores: boolean;
 }
 
 export interface TimerApi {
@@ -79,6 +95,7 @@ export interface TimerApi {
 	setTimer?: (cb: () => void, delay: number) => unknown;
 	clearTimer?: (id: unknown) => void;
 	onRoundTimeout?: (event: RoundTimeoutEvent) => void;
+	onCountdownTimeout?: (event: CountdownTimeoutEvent) => void;
 }
 
 const defaultConfig: RoomConfig = {
@@ -126,6 +143,7 @@ function serializeRoom(room: RoomState): SerializedRoomState {
 			lastAcceptedAtMs: player.lastAcceptedAtMs,
 		})),
 		currentRound: room.currentRound,
+		countdownStartsAtMs: room.countdownStartsAtMs || null,
 		roundDeadlineMs: room.roundDeadlineMs || null,
 		rankingVersion: room.rankingVersion,
 		ranking: computeRanking(room.players),
@@ -140,10 +158,12 @@ export class RoomEngine {
 	setTimer: (cb: () => void, delay: number) => unknown;
 	clearTimer: (id: unknown) => void;
 	private readonly onRoundTimeout?: (event: RoundTimeoutEvent) => void;
+	private readonly onCountdownTimeout?: (event: CountdownTimeoutEvent) => void;
 
 	constructor(timerApi: TimerApi) {
 		this.now = timerApi.now;
 		this.onRoundTimeout = timerApi.onRoundTimeout;
+		this.onCountdownTimeout = timerApi.onCountdownTimeout;
 		this.setTimer =
 			timerApi.setTimer ??
 			((cb, delay) => {
@@ -190,6 +210,8 @@ export class RoomEngine {
 			scoreDeltaByRoundPlayer: new Map(),
 			claimAcksByKey: new Map(),
 			rankingVersion: 0,
+			countdownStartsAtMs: 0,
+			countdownVersion: 0,
 		};
 		this.roomsById.set(roomId, room);
 		return {
@@ -234,15 +256,110 @@ export class RoomEngine {
 		if (!room) return { ok: false as const, code: "ROOM_NOT_FOUND" };
 		if (room.hostId !== input.actorPlayerId)
 			return { ok: false as const, code: "NOT_HOST" };
-		if (room.players.length < 2)
+		if (!this.isConnectedPlayer(room, input.actorPlayerId))
+			return { ok: false as const, code: "NOT_CONNECTED" };
+		if (this.connectedPlayers(room).length < 2)
 			return { ok: false as const, code: "NOT_ENOUGH_PLAYERS" };
 		if (room.status !== ROOM_STATUS.LOBBY)
 			return { ok: false as const, code: "INVALID_STATUS" };
-		return this.startRound(room);
+		return this.beginCountdown(room, ROOM_STATUS.LOBBY);
+	}
+
+	startRematch(input: { roomId: string; actorPlayerId: string }) {
+		const room = this.roomsById.get(input.roomId);
+		if (!room) return { ok: false as const, code: "ROOM_NOT_FOUND" };
+		if (room.hostId !== input.actorPlayerId)
+			return { ok: false as const, code: "NOT_HOST" };
+		if (!this.isConnectedPlayer(room, input.actorPlayerId))
+			return { ok: false as const, code: "NOT_CONNECTED" };
+		if (room.status !== ROOM_STATUS.FINAL)
+			return { ok: false as const, code: "INVALID_STATUS" };
+		if (this.connectedPlayers(room).length < 2)
+			return { ok: false as const, code: "NOT_ENOUGH_PLAYERS" };
+
+		return this.beginCountdown(room, ROOM_STATUS.FINAL);
+	}
+
+	disconnectPlayer(input: { roomId: string; playerId: string }) {
+		const room = this.roomsById.get(input.roomId);
+		if (!room) return { ok: false as const, code: "ROOM_NOT_FOUND" };
+		const player = room.playersById.get(input.playerId);
+		if (!player) return { ok: false as const, code: "PLAYER_NOT_FOUND" };
+		player.connected = false;
+		if (room.status === ROOM_STATUS.COUNTDOWN) this.cancelCountdown(room);
+		return { ok: true as const, roomState: serializeRoom(room) };
+	}
+
+	private beginCountdown(
+		room: RoomState,
+		sourceStatus: typeof ROOM_STATUS.LOBBY | typeof ROOM_STATUS.FINAL,
+	) {
+		this.clearRoomTimers(room);
+		room.status = ROOM_STATUS.COUNTDOWN;
+		room.countdownSourceStatus = sourceStatus;
+		room.countdownStartsAtMs = this.now() + 3_000;
+		const version = ++room.countdownVersion;
+		this.scheduleCountdownTimer(room, version);
+		return {
+			ok: true as const,
+			startsAtMs: room.countdownStartsAtMs,
+			roomState: serializeRoom(room),
+		};
+	}
+
+	private scheduleCountdownTimer(room: RoomState, version: number): void {
+		const remainingMs = Math.max(0, room.countdownStartsAtMs - this.now());
+		room.countdownTimerId = this.setTimer(() => {
+			if (
+				this.roomsById.get(room.roomId) !== room ||
+				room.status !== ROOM_STATUS.COUNTDOWN ||
+				room.countdownVersion !== version
+			)
+				return;
+			if (this.now() < room.countdownStartsAtMs) {
+				this.scheduleCountdownTimer(room, version);
+				return;
+			}
+
+			const sourceStatus = room.countdownSourceStatus;
+			const canStart =
+				sourceStatus !== undefined &&
+				this.isConnectedPlayer(room, room.hostId) &&
+				this.connectedPlayers(room).length >= 2;
+			if (!canStart) {
+				this.cancelCountdown(room);
+				this.onCountdownTimeout?.({ room, started: false, resetScores: false });
+				return;
+			}
+
+			const resetScores = sourceStatus === ROOM_STATUS.FINAL;
+			this.clearCountdownTimer(room);
+			if (resetScores) this.resetForRematch(room);
+			this.startRound(room);
+			this.onCountdownTimeout?.({ room, started: true, resetScores });
+		}, remainingMs);
+	}
+
+	private resetForRematch(room: RoomState): void {
+		room.currentRound = 0;
+		room.roundStartMs = 0;
+		room.roundDeadlineMs = 0;
+		room.targetsByRoundPlayer.clear();
+		room.claimedTargetsByRound.clear();
+		room.acceptedPlayersByRound.clear();
+		room.scoreDeltaByRoundPlayer.clear();
+		room.claimAcksByKey.clear();
+		room.rankingVersion = 0;
+		for (const player of room.players) {
+			player.totalScore = 0;
+			player.lastAcceptedAtMs = null;
+		}
 	}
 
 	private startRound(room: RoomState) {
 		room.status = ROOM_STATUS.ROUND_ACTIVE;
+		room.countdownStartsAtMs = 0;
+		room.countdownSourceStatus = undefined;
 		room.currentRound += 1;
 		room.roundStartMs = this.now();
 		room.roundDeadlineMs = room.roundStartMs + room.config.roundDurationMs;
@@ -250,7 +367,7 @@ export class RoomEngine {
 		room.acceptedPlayersByRound.set(room.currentRound, new Set());
 		room.claimAcksByKey.clear();
 
-		room.players.forEach((player, index) => {
+		this.connectedPlayers(room).forEach((player, index) => {
 			room.targetsByRoundPlayer.set(
 				`${room.currentRound}:${player.playerId}`,
 				targetFor(room.currentRound, index, room.config),
@@ -371,6 +488,26 @@ export class RoomEngine {
 		return { ok: true as const, ack, ranking: computeRanking(room.players) };
 	}
 
+	abortRoom(input: {
+		roomId: string;
+		actorPlayerId: string;
+	}): AbortRoomResult {
+		const room = this.roomsById.get(input.roomId);
+		if (!room) return { ok: false, code: "ROOM_NOT_FOUND" };
+		if (room.hostId !== input.actorPlayerId)
+			return { ok: false, code: "NOT_HOST" };
+		if (
+			room.status !== ROOM_STATUS.COUNTDOWN &&
+			room.status !== ROOM_STATUS.ROUND_ACTIVE &&
+			room.status !== ROOM_STATUS.FINAL
+		)
+			return { ok: false, code: "ROOM_NOT_ACTIVE" };
+
+		this.clearRoomTimers(room);
+		this.roomsById.delete(room.roomId);
+		return { ok: true, reason: "HOST_LEFT" };
+	}
+
 	closeRound(roomId: string, reason: "TIMEOUT"): CloseRoundResult {
 		const room = this.roomsById.get(roomId);
 		if (!room) return { ok: false as const, code: "ROOM_NOT_FOUND" };
@@ -381,10 +518,7 @@ export class RoomEngine {
 				ranking: computeRanking(room.players),
 			};
 
-		if (room.roundTimerId !== undefined) {
-			this.clearTimer(room.roundTimerId);
-			room.roundTimerId = undefined;
-		}
+		this.clearRoundTimer(room);
 
 		if (room.currentRound >= room.config.rounds) {
 			room.status = ROOM_STATUS.FINAL;
@@ -419,8 +553,17 @@ export class RoomEngine {
 		};
 	}
 
+	getGameCountdownEvent(room: RoomState) {
+		if (room.status !== ROOM_STATUS.COUNTDOWN || !room.countdownStartsAtMs)
+			throw new Error("Room is not counting down");
+		return {
+			type: "GAME_COUNTDOWN" as const,
+			startsAtMs: room.countdownStartsAtMs,
+		};
+	}
+
 	getRoundStartedEvents(room: RoomState) {
-		return room.players.map((player) => {
+		return this.connectedPlayers(room).map((player) => {
 			const target = room.targetsByRoundPlayer.get(
 				`${room.currentRound}:${player.playerId}`,
 			);
@@ -456,6 +599,40 @@ export class RoomEngine {
 
 	getRanking(room: RoomState): RankingEntry[] {
 		return computeRanking(room.players);
+	}
+
+	private connectedPlayers(room: RoomState): PlayerState[] {
+		return room.players.filter((player) => player.connected);
+	}
+
+	private isConnectedPlayer(room: RoomState, playerId: string): boolean {
+		return room.playersById.get(playerId)?.connected === true;
+	}
+
+	private cancelCountdown(room: RoomState): void {
+		this.clearCountdownTimer(room);
+		room.status = room.countdownSourceStatus ?? ROOM_STATUS.LOBBY;
+		room.countdownSourceStatus = undefined;
+		room.countdownStartsAtMs = 0;
+	}
+
+	private clearCountdownTimer(room: RoomState): void {
+		if (room.countdownTimerId !== undefined) {
+			this.clearTimer(room.countdownTimerId);
+			room.countdownTimerId = undefined;
+		}
+		room.countdownVersion += 1;
+	}
+
+	private clearRoundTimer(room: RoomState): void {
+		if (room.roundTimerId === undefined) return;
+		this.clearTimer(room.roundTimerId);
+		room.roundTimerId = undefined;
+	}
+
+	private clearRoomTimers(room: RoomState): void {
+		this.clearCountdownTimer(room);
+		this.clearRoundTimer(room);
 	}
 
 	private makeAck(

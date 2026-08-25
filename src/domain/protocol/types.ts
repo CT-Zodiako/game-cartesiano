@@ -1,5 +1,6 @@
 export const ROOM_STATUS = {
 	LOBBY: "LOBBY",
+	COUNTDOWN: "COUNTDOWN",
 	ROUND_ACTIVE: "ROUND_ACTIVE",
 	FINAL: "FINAL",
 } as const;
@@ -68,6 +69,7 @@ export interface SerializedRoomState {
 	config: RoomConfig;
 	players: SerializedPlayerState[];
 	currentRound: number;
+	countdownStartsAtMs: number | null;
 	roundDeadlineMs: number | null;
 	rankingVersion: number;
 	ranking: RankingEntry[];

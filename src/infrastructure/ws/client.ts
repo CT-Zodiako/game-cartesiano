@@ -2,25 +2,34 @@ import type {
 	S2CEvent,
 	RoomState,
 	RankingEntry,
+	GameCountdownEvent,
 	RoundStartedEvent,
 	ClaimAckEvent,
 	LateAlertEvent,
 	GameEndedEvent,
+	RoomClosedEvent,
 } from "./events.ts";
 
-type SyntheticEvent = { type: "connected" | "disconnected" };
+type ConnectionEventType =
+	| "connecting"
+	| "reconnecting"
+	| "connected"
+	| "disconnected";
+type SyntheticEvent = { type: ConnectionEventType };
 type WsClientEvent = S2CEvent | SyntheticEvent;
 
 export type WsEventHandler = (event: WsClientEvent) => void;
 
 const S2C_EVENT_TYPES = new Set<string>([
 	"ROOM_SNAPSHOT",
+	"GAME_COUNTDOWN",
 	"ROUND_STARTED",
 	"CLAIM_ACK",
 	"LATE_ALERT",
 	"RANKING_UPDATED",
 	"ROUND_ENDED",
 	"GAME_ENDED",
+	"ROOM_CLOSED",
 	"ERROR",
 	"PONG",
 ]);
@@ -37,17 +46,41 @@ function isS2CEvent(value: unknown): value is S2CEvent {
 
 export class WSClient {
 	private ws: WebSocket | null = null;
+	private wsUrl: string | null = null;
 	private reqSeq = 0;
+	private reconnectAttempts = 0;
+	private manuallyDisconnected = false;
+	private pendingLobbyMessage: string | null = null;
 	private handlers: Map<string, WsEventHandler> = new Map();
 
 	connect(wsUrl: string): void {
-		this.ws = new WebSocket(wsUrl);
+		this.wsUrl = wsUrl;
+		this.manuallyDisconnected = false;
+		this.reconnectAttempts = 0;
+		this.openConnection("connecting");
+	}
 
-		this.ws.addEventListener("open", () => {
+	disconnect(): void {
+		this.manuallyDisconnected = true;
+		this.pendingLobbyMessage = null;
+		this.ws?.close();
+		this.ws = null;
+	}
+
+	private openConnection(status: "connecting" | "reconnecting"): void {
+		if (!this.wsUrl) return;
+		const socket = new WebSocket(this.wsUrl);
+		this.ws = socket;
+		this.emit(status, { type: status });
+
+		socket.addEventListener("open", () => {
+			if (this.ws !== socket) return;
+			this.reconnectAttempts = 0;
 			this.emit("connected", { type: "connected" });
+			this.flushPendingLobbyMessages();
 		});
 
-		this.ws.addEventListener("message", (raw: MessageEvent) => {
+		socket.addEventListener("message", (raw: MessageEvent) => {
 			try {
 				const event: unknown = JSON.parse(String(raw.data));
 				if (isS2CEvent(event)) this.emit(event.type, event);
@@ -56,14 +89,16 @@ export class WSClient {
 			}
 		});
 
-		this.ws.addEventListener("close", () => {
+		socket.addEventListener("close", () => {
+			if (this.ws !== socket) return;
+			this.ws = null;
+			if (!this.manuallyDisconnected && this.reconnectAttempts < 1) {
+				this.reconnectAttempts += 1;
+				this.openConnection("reconnecting");
+				return;
+			}
 			this.emit("disconnected", { type: "disconnected" });
 		});
-	}
-
-	disconnect(): void {
-		this.ws?.close();
-		this.ws = null;
 	}
 
 	get isConnected(): boolean {
@@ -83,11 +118,33 @@ export class WSClient {
 		if (handler) handler(event);
 	}
 
+	private message(type: string, payload: Record<string, unknown>): string {
+		return JSON.stringify({ type, reqId: `c-${++this.reqSeq}`, ...payload });
+	}
+
 	private send(type: string, payload: Record<string, unknown>): void {
 		if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-		this.ws.send(
-			JSON.stringify({ type, reqId: `c-${++this.reqSeq}`, ...payload }),
-		);
+		this.ws.send(this.message(type, payload));
+	}
+
+	private sendLobby(type: "CREATE_ROOM" | "JOIN_ROOM", payload: Record<string, unknown>): void {
+		const message = this.message(type, payload);
+		if (this.ws?.readyState === WebSocket.OPEN) {
+			this.ws.send(message);
+			return;
+		}
+		this.pendingLobbyMessage = message;
+		if (!this.ws) {
+			this.reconnectAttempts = 0;
+			this.openConnection("connecting");
+		}
+	}
+
+	private flushPendingLobbyMessages(): void {
+		if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+		const message = this.pendingLobbyMessage;
+		this.pendingLobbyMessage = null;
+		if (message) this.ws.send(message);
 	}
 
 	createRoom(
@@ -100,15 +157,23 @@ export class WSClient {
 			maxY?: number;
 		},
 	): void {
-		this.send("CREATE_ROOM", { playerName, config: config ?? {} });
+		this.sendLobby("CREATE_ROOM", { playerName, config: config ?? {} });
 	}
 
 	joinRoom(playerName: string, roomCode: string): void {
-		this.send("JOIN_ROOM", { playerName, roomCode });
+		this.sendLobby("JOIN_ROOM", { playerName, roomCode });
 	}
 
 	startGame(roomId: string): void {
 		this.send("START_GAME", { roomId });
+	}
+
+	startRematch(roomId: string): void {
+		this.send("START_REMATCH", { roomId });
+	}
+
+	leaveRoom(roomId: string): void {
+		this.send("LEAVE_ROOM", { roomId });
 	}
 
 	submitClaim(
@@ -139,6 +204,15 @@ export function handleRoomSnapshot(
 ): void {
 	ws.on("ROOM_SNAPSHOT", (event) => {
 		if (event.type === "ROOM_SNAPSHOT") cb(event.roomState, event.yourPlayerId);
+	});
+}
+
+export function handleGameCountdown(
+	ws: WSClient,
+	cb: (event: GameCountdownEvent) => void,
+): void {
+	ws.on("GAME_COUNTDOWN", (event) => {
+		if (event.type === "GAME_COUNTDOWN") cb(event);
 	});
 }
 
@@ -193,5 +267,14 @@ export function handleGameEnded(
 ): void {
 	ws.on("GAME_ENDED", (event) => {
 		if (event.type === "GAME_ENDED") cb(event);
+	});
+}
+
+export function handleRoomClosed(
+	ws: WSClient,
+	cb: (event: RoomClosedEvent) => void,
+): void {
+	ws.on("ROOM_CLOSED", (event) => {
+		if (event.type === "ROOM_CLOSED") cb(event);
 	});
 }

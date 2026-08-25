@@ -1,22 +1,27 @@
 import type { RoverState } from "@domain/rover/types.ts";
 import { RoverScene } from "@ui/phaser/RoverScene.ts";
 import { createStatePanel } from "@ui/dom/statePanel.ts";
+import { setupThemeToggle } from "@ui/dom/theme.ts";
 import {
 	WSClient,
 	handleRoomSnapshot,
+	handleGameCountdown,
 	handleRoundStarted,
 	handleClaimAck,
 	handleLateAlert,
 	handleRankingUpdated,
 	handleError,
 	handleGameEnded,
+	handleRoomClosed,
 } from "@infrastructure/ws/client.ts";
 import type {
 	RoomState,
 	RankingEntry,
+	GameCountdownEvent,
 	RoundStartedEvent,
 	GameEndedEvent,
 } from "@infrastructure/ws/events.ts";
+import { getRoomErrorFeedback } from "@infrastructure/ws/room-feedback.ts";
 import { deriveWsUrl } from "@infrastructure/ws/url.ts";
 
 // ── Plateau config ─────────────────────────────────────────────────────────
@@ -50,7 +55,15 @@ const phaserGame = new Phaser.Game({
 
 // ── DOM refs ────────────────────────────────────────────────────────────────
 
-const playBtn = document.getElementById("btn-play") as HTMLButtonElement | null;
+const themeToggle = document.getElementById("theme-toggle") as HTMLButtonElement | null;
+if (themeToggle) {
+	setupThemeToggle(
+		document.documentElement,
+		themeToggle,
+		window.localStorage,
+		(theme) => scene.setTheme(theme),
+	);
+}
 
 // Elementos del menú online
 const createRoomBtn = document.getElementById(
@@ -118,13 +131,6 @@ function showOnlinePanel(panel: HTMLElement | null): void {
 	if (panel) panel.classList.remove("hidden");
 }
 
-function showOnlineMenu(panel: HTMLElement | null): void {
-	if (!onlineEntryMenu) return;
-	onlineEntryMenu.classList.remove("hidden");
-	if (panel) panel.classList.add("hidden");
-	onlineLobby?.classList.add("hidden");
-}
-
 // Config inputs
 const configMaxPlayers = document.getElementById(
 	"config-max-players",
@@ -140,18 +146,12 @@ const configMaxXy = document.getElementById(
 ) as HTMLInputElement | null;
 
 const feedbackText = document.getElementById("feedback-text");
+const connectionStatus = document.getElementById("connection-status");
 
 const panel = createStatePanel(document);
 
 // ── State ──────────────────────────────────────────────────────────────────
 
-const onlineMode =
-	String(
-		(window as unknown as { __ONLINE_MODE?: string }).__ONLINE_MODE ?? "",
-	).toLowerCase() === "true" ||
-	new URLSearchParams(window.location.search).get("online") === "1";
-
-let score = 0;
 let challenge: { x: number; y: number } | null = null;
 let selectedPosition = { x: 0, y: 0 };
 
@@ -163,7 +163,9 @@ interface OnlineState {
 	roomCode: string | null;
 	playerId: string | null;
 	hostId: string | null;
+	status: RoomState["status"] | null;
 	currentRound: number;
+	countdownStartsAtMs: number | null;
 	deadlineMs: number | null;
 	ranking: RankingEntry[];
 }
@@ -174,18 +176,37 @@ const onlineState: OnlineState = {
 	roomCode: null,
 	playerId: null,
 	hostId: null,
+	status: null,
 	currentRound: 0,
+	countdownStartsAtMs: null,
 	deadlineMs: null,
 	ranking: [],
 };
+let isFinalRankingModalOpen = false;
 
 // ── Online mode helpers ─────────────────────────────────────────────────────
+
+function syncStartGameControl(): void {
+	if (!startGameBtn) return;
+	const isHost = onlineState.playerId === onlineState.hostId;
+	const canStart =
+		onlineState.status === "LOBBY" ||
+		(onlineState.status === "FINAL" && !isFinalRankingModalOpen);
+	startGameBtn.style.display = isHost && canStart ? "block" : "none";
+	startGameBtn.disabled =
+		!canStart ||
+		onlineState.ranking.filter((player) => player.connected).length < 2;
+}
 
 function syncLobbyUi(roomState: RoomState): void {
 	if (!roomState) return;
 	onlineState.roomId = roomState.roomId;
 	onlineState.roomCode = roomState.roomCode;
 	onlineState.hostId = roomState.hostId;
+	onlineState.status = roomState.status;
+	onlineState.currentRound = roomState.currentRound;
+	onlineState.countdownStartsAtMs = roomState.countdownStartsAtMs;
+	onlineState.deadlineMs = roomState.roundDeadlineMs;
 	const self = (roomState.players ?? []).find(
 		(p) =>
 			p.name === playerNameInputCreate?.value?.trim() ||
@@ -213,18 +234,40 @@ function syncLobbyUi(roomState: RoomState): void {
 	onlineState.ranking = playersAsRanking;
 	updateRankingPanel(playersAsRanking);
 
-	// Mostrar u ocultar botón de iniciar partida según si es host
+	// Mostrar u ocultar botón de iniciar partida según si es host.
+	syncStartGameControl();
+}
+
+function setConnectionStatus(message: string, isError = false): void {
+	if (!connectionStatus) return;
+	connectionStatus.textContent = message;
+	connectionStatus.classList.toggle("connection-error", isError);
+}
+
+function resetOnlineRoom(): void {
+	onlineState.roomId = null;
+	onlineState.roomCode = null;
+	onlineState.playerId = null;
+	onlineState.hostId = null;
+	onlineState.status = null;
+	onlineState.currentRound = 0;
+	onlineState.countdownStartsAtMs = null;
+	onlineState.deadlineMs = null;
+	onlineState.ranking = [];
+	isFinalRankingModalOpen = false;
 	if (startGameBtn) {
-		const isHost = onlineState.playerId === roomState.hostId;
-		if (isHost) {
-			startGameBtn.style.display = "block";
-			startGameBtn.disabled = !(
-				roomState.status === "LOBBY" && (roomState.players ?? []).length >= 2
-			);
-		} else {
-			startGameBtn.style.display = "none";
-		}
+		startGameBtn.style.display = "none";
+		startGameBtn.disabled = true;
 	}
+	challenge = null;
+	onlineMenuState = "menu";
+	showOnlinePanel(onlineEntryMenu);
+	updateRankingPanel([]);
+	scene.setTarget(null);
+	const targetEl = document.getElementById("target-coord");
+	if (targetEl) targetEl.textContent = "...";
+	const gameContainer = document.getElementById("game-container");
+	if (gameContainer) gameContainer.classList.add("dimmed");
 }
 
 function initOnlineMode(): void {
@@ -233,17 +276,39 @@ function initOnlineMode(): void {
 		window.location.host,
 		(window as unknown as { __WS_URL__?: string }).__WS_URL__,
 	);
-	ws.connect(wsUrl);
+	let hasHostLeftClosureNotice = false;
+
+	function clearHostLeftClosureFeedback(): void {
+		if (!hasHostLeftClosureNotice || !feedbackText) return;
+		feedbackText.textContent = "";
+		feedbackText.style.color = "";
+	}
+
+	ws.on("connecting", () => {
+		onlineState.connected = false;
+		setConnectionStatus("Conectando con la sala...");
+	});
+
+	ws.on("reconnecting", () => {
+		onlineState.connected = false;
+		setConnectionStatus("Conexión perdida. Reintentando...");
+	});
 
 	ws.on("connected", () => {
 		onlineState.connected = true;
+		setConnectionStatus("Conectado. Podés crear o unirte a una sala.");
 	});
 
 	ws.on("disconnected", () => {
 		onlineState.connected = false;
+		setConnectionStatus(
+			"No se pudo conectar. Presioná Crear o Unirse para reintentar.",
+			true,
+		);
 	});
 
 	handleRoomSnapshot(ws, (roomState, yourPlayerId) => {
+		hasHostLeftClosureNotice = false;
 		if (yourPlayerId) onlineState.playerId = yourPlayerId;
 		syncLobbyUi(roomState);
 		// Si hay roomId, mostrar lobby
@@ -253,12 +318,34 @@ function initOnlineMode(): void {
 		}
 	});
 
+	handleGameCountdown(ws, (event: GameCountdownEvent) => {
+		closeFinalRankingModal();
+		onlineState.status = "COUNTDOWN";
+		onlineState.countdownStartsAtMs = event.startsAtMs;
+		onlineState.deadlineMs = null;
+		panel.setCountdown(event.startsAtMs);
+		if (startGameBtn) startGameBtn.style.display = "none";
+		if (feedbackText) {
+			feedbackText.textContent = "La partida comienza en 3...";
+			feedbackText.style.color = "";
+		}
+		const gameContainer = document.getElementById("game-container");
+		if (gameContainer) gameContainer.classList.add("dimmed");
+	});
+
 	handleRoundStarted(ws, (event: RoundStartedEvent) => {
+		closeFinalRankingModal();
+		onlineState.status = "ROUND_ACTIVE";
+		onlineState.countdownStartsAtMs = null;
 		onlineState.currentRound = event.roundId;
 		onlineState.deadlineMs = event.deadlineMs;
 		panel.setCountdown(event.deadlineMs);
 		panel.setLateAlert("");
 		scene.unlockClaim();
+		if (feedbackText?.textContent === "La partida comienza en 3...") {
+			feedbackText.textContent = "";
+			feedbackText.style.color = "";
+		}
 		// Restaurar el tablero para la nueva ronda
 		const gameContainer = document.getElementById("game-container");
 		if (gameContainer) gameContainer.classList.remove("dimmed");
@@ -301,23 +388,38 @@ function initOnlineMode(): void {
 		updateRankingPanel(ranking);
 	});
 
-	handleError(ws, (code, message) => {
-		feedbackText!.textContent = `❌ ${code}`;
+	handleError(ws, (code) => {
+		const feedback = getRoomErrorFeedback(code, hasHostLeftClosureNotice);
+		if (!feedback) return;
+		feedbackText!.textContent = `❌ ${feedback}`;
 		feedbackText!.style.color = "#f87171";
 	});
 
 	// Mostrar modal de ranking final al terminar el juego
 	handleGameEnded(ws, (event: GameEndedEvent) => {
+		syncLobbyUi(event.roomState);
 		showFinalRankingModal(event.finalRanking || []);
+	});
+
+	handleRoomClosed(ws, (event) => {
+		hasHostLeftClosureNotice = event.reason === "HOST_LEFT";
+		resetOnlineRoom();
+		feedbackText!.textContent =
+			event.reason === "HOST_LEFT"
+				? "La partida se canceló porque el host abandonó la sala. Podés crear o unirte a otra sala."
+				: event.message;
+		feedbackText!.style.color = "#f87171";
 	});
 
 	// Navegación del menú online
 	createRoomBtn?.addEventListener("click", () => {
+		clearHostLeftClosureFeedback();
 		onlineMenuState = "create";
 		showOnlinePanel(onlineCreatePanel);
 	});
 
 	joinRoomBtn?.addEventListener("click", () => {
+		clearHostLeftClosureFeedback();
 		onlineMenuState = "join";
 		showOnlinePanel(onlineJoinPanel);
 	});
@@ -363,20 +465,21 @@ function initOnlineMode(): void {
 	});
 
 	leaveRoomBtn?.addEventListener("click", () => {
-		// Limpiar estado y volver al menú
-		onlineState.roomId = null;
-		onlineState.playerId = null;
-		onlineState.currentRound = 0;
-		onlineState.deadlineMs = null;
-		onlineState.ranking = [];
-		onlineMenuState = "menu";
-		showOnlineMenu(onlineEntryMenu);
-		// Reset ranking display
-		updateRankingPanel([]);
+		if (
+			onlineState.roomId &&
+			onlineState.playerId === onlineState.hostId
+		) {
+			ws.leaveRoom(onlineState.roomId);
+		}
+		resetOnlineRoom();
 	});
 
 	startGameBtn?.addEventListener("click", () => {
 		if (!onlineState.roomId) return;
+		if (onlineState.status === "FINAL") {
+			ws.startRematch(onlineState.roomId);
+			return;
+		}
 		ws.startGame(onlineState.roomId);
 	});
 
@@ -396,9 +499,13 @@ function initOnlineMode(): void {
 	});
 
 	setInterval(() => {
-		if (!onlineState.deadlineMs) return;
-		panel.setCountdown(onlineState.deadlineMs);
+		const deadlineMs =
+			onlineState.countdownStartsAtMs ?? onlineState.deadlineMs;
+		if (!deadlineMs) return;
+		panel.setCountdown(deadlineMs);
 	}, 250);
+
+	ws.connect(wsUrl);
 }
 
 // Callback para actualizar "Tu elección" cuando se selecciona una celda
@@ -407,46 +514,6 @@ scene.setCellSelectedCallback(({ x, y }) => {
 	const coordEl = document.getElementById("selected-coord");
 	if (coordEl) coordEl.textContent = `(${x}, ${y})`;
 });
-
-// Botón "Marcar" - modo single-player
-playBtn?.addEventListener("click", () => {
-	if (onlineMode) return;
-	const { x, y } = selectedPosition;
-	const state: RoverState = { x, y, orientation: "N" };
-	setRover(state);
-	panel.setCurrentState(state);
-
-	const hit = state.x === challenge?.x && state.y === challenge?.y;
-	if (hit) {
-		score += 1;
-		feedbackText!.textContent = "✅ ¡Correcto! Ganaste 1 punto.";
-		feedbackText!.style.color = "#4ade80";
-		// Nuevo objetivo inmediato tras acierto
-		newChallenge();
-		// Resetear la posición seleccionada
-		selectedPosition = { x: 0, y: 0 };
-		const coordEl = document.getElementById("selected-coord");
-		if (coordEl) coordEl.textContent = "(0, 0)";
-	} else {
-		score = Math.max(0, score - 1);
-		feedbackText!.textContent = `❌ Incorrecto. Era (${challenge?.x}, ${challenge?.y}).`;
-		feedbackText!.style.color = "#f87171";
-	}
-
-	renderHud();
-	setRover({ x: 0, y: 0, orientation: "N" });
-});
-
-// ── Single-player helpers ───────────────────────────────────────────────────
-
-function randomInt(min: number, max: number): number {
-	return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-// Random in range [-max, max] (four quadrants)
-function randomCoord(max: number): number {
-	return randomInt(-max, max);
-}
 
 // Update ranking panel in the DOM
 function updateRankingPanel(ranking: RankingEntry[]): void {
@@ -593,12 +660,24 @@ function showFinalRankingModal(ranking: RankingEntry[]): void {
 	}
 
 	// Mostrar modal
+	isFinalRankingModalOpen = true;
+	syncStartGameControl();
 	modal.classList.add("visible");
 }
 
 function closeFinalRankingModal(): void {
 	const modal = document.getElementById("final-ranking-modal");
 	if (modal) modal.classList.remove("visible");
+	isFinalRankingModalOpen = false;
+	syncStartGameControl();
+	if (
+		onlineState.status === "FINAL" &&
+		onlineState.playerId !== onlineState.hostId &&
+		feedbackText
+	) {
+		feedbackText.textContent = "Esperando que el host inicie otra partida.";
+		feedbackText.style.color = "";
+	}
 }
 
 // Helper para escapar HTML
@@ -608,30 +687,9 @@ function escapeHtml(text: string): string {
 	return div.innerHTML;
 }
 
-function renderHud(): void {
-	// Update score in state panel (top)
-	const scoreEl = document.querySelector('[data-role="score"]');
-	if (scoreEl) scoreEl.textContent = String(score);
-}
-
 function setRover(state: RoverState): void {
 	scene.setScenario(PLATEAU, state);
 }
-
-function newChallenge(): void {
-	challenge = {
-		x: randomCoord(PLATEAU.xMax),
-		y: randomCoord(PLATEAU.yMax),
-	};
-	// Update target display in header
-	const targetEl = document.getElementById("target-coord");
-	if (targetEl) targetEl.textContent = `(${challenge.x}, ${challenge.y})`;
-	scene.setTarget(challenge);
-	feedbackText!.textContent = "";
-}
-
-// Exponer para el HTML (tab switching)
-Object.assign(window, { generateNewChallenge: newChallenge });
 
 // ── Resize handler ───────────────────────────────────────────────────────────
 
@@ -651,24 +709,8 @@ if (typeof ResizeObserver !== "undefined") {
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────
 
-renderHud();
 setRover({ x: 0, y: 0, orientation: "N" });
 
-if (onlineMode) {
-	// Reset target display
-	const targetEl = document.getElementById("target-coord");
-	if (targetEl) targetEl.textContent = "...";
-	// Ocultar botón en modo online
-	if (playBtn) {
-		playBtn.disabled = true;
-		playBtn.setAttribute("data-mode", "online");
-	}
-	initOnlineMode();
-} else {
-	// Mostrar botón en modo juego (single-player)
-	if (playBtn) {
-		playBtn.disabled = false;
-		playBtn.setAttribute("data-mode", "single");
-	}
-	newChallenge();
-}
+const targetEl = document.getElementById("target-coord");
+if (targetEl) targetEl.textContent = "...";
+initOnlineMode();

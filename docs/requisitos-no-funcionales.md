@@ -18,8 +18,8 @@
 
 ## RNF-2: Disponibilidad
 
-### RNF-2.1: Degradación graceful
-- Si el servidor no está disponible, el modo ejercicio (single-player) sigue funcionando sin conexión
+### RNF-2.1: Disponibilidad del servicio
+- El cliente muestra los errores de conexión del servidor y no inicia una partida sin una sala activa
 
 ### RNF-2.2: Reconexión
 - **No implementado en la versión actual.** El campo `reconnectToken` está en los tipos pero el servidor no lo procesa.
@@ -84,7 +84,6 @@
 
 ### RNF-6.3: Deuda técnica conocida
 - `server.js` en JS mientras el resto del proyecto es TS
-- `renderState()` llamado en `main.ts:246` pero no definido (crash en single-player)
 - Target no se renderiza visualmente en el tablero (`targetGfx` nunca se dibuja)
 - `CLAIM_ACK` usa `pointsEarned` en el servidor pero `scoreDelta` en el tipo TS
 - `GAME_ENDED` envía `ranking` pero el tipo TS define `finalRanking`

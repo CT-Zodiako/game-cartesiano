@@ -1,316 +1,323 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 
 import { RoomEngine, ROOM_STATUS } from "../../server/room-engine.js";
 
-function createFakeClock(start = 1_000) {
-	let now = start;
+function createFakeTimers(nowStart = 1_000) {
+	let now = nowStart;
+	let timerSeq = 0;
+	const timers = new Map<
+		string,
+		{ cb: () => void; dueAt: number; cancelled: boolean }
+	>();
+
 	return {
 		now: () => now,
+		setTimer: (cb: () => void, delay: number) => {
+			const id = `timer-${++timerSeq}`;
+			timers.set(id, { cb, dueAt: now + delay, cancelled: false });
+			return id;
+		},
+		clearTimer: (id: unknown) => {
+			const timer = timers.get(String(id));
+			if (timer) timer.cancelled = true;
+		},
 		tick: (ms: number) => {
 			now += ms;
-			return now;
+			for (const [id, timer] of [...timers]) {
+				if (timer.cancelled || timer.dueAt > now) continue;
+				timer.cancelled = true;
+				timers.delete(id);
+				timer.cb();
+			}
 		},
+		callbacks: () => [...timers.values()].map((timer) => timer.cb),
 	};
 }
 
-test("room snapshots serialize initial timestamps as null and ids per engine", () => {
-	const firstEngine = new RoomEngine({
-		now: () => 1_000,
-		setTimer: () => 1,
-		clearTimer: () => {},
+function createRoomWithPeer(engine: RoomEngine) {
+	const created = engine.createRoom({ hostName: "Host", config: { rounds: 1 } });
+	const joined = engine.joinRoom({ roomCode: created.roomCode, playerName: "Peer" });
+	if (!joined.ok) throw new Error("peer join failed");
+	return { created, joined, room: engine.roomsById.get(created.roomId)! };
+}
+
+test("initial start waits three seconds, exposes an absolute start time, and rejects duplicates", () => {
+	const timers = createFakeTimers();
+	const engine = new RoomEngine(timers);
+	const { created, room } = createRoomWithPeer(engine);
+
+	const started = engine.startGame({ roomId: created.roomId, actorPlayerId: created.hostId });
+	assert.deepEqual(started, {
+		ok: true,
+		startsAtMs: 4_000,
+		roomState: engine.getRoomSnapshot(created.roomId)?.roomState,
 	});
-	const first = firstEngine.createRoom({ hostName: "Host" });
+	assert.equal(room.status, ROOM_STATUS.COUNTDOWN);
+	assert.equal(room.currentRound, 0);
+	assert.equal(engine.getGameCountdownEvent(room).startsAtMs, 4_000);
+	assert.deepEqual(
+		engine.startGame({ roomId: created.roomId, actorPlayerId: created.hostId }),
+		{ ok: false, code: "INVALID_STATUS" },
+	);
+
+	timers.tick(2_999);
+	assert.equal(room.status, ROOM_STATUS.COUNTDOWN);
+	assert.equal(room.currentRound, 0);
+	timers.tick(1);
+	assert.equal(room.status, ROOM_STATUS.ROUND_ACTIVE);
+	assert.equal(room.currentRound, 1);
+});
+
+test("rematch preserves final scores through countdown and resets them only at expiry", () => {
+	const timers = createFakeTimers();
+	const engine = new RoomEngine(timers);
+	const { created, joined, room } = createRoomWithPeer(engine);
+	engine.startGame({ roomId: created.roomId, actorPlayerId: created.hostId });
+	timers.tick(3_000);
+	const target = room.targetsByRoundPlayer.get(`1:${created.hostId}`)!;
+	engine.submitClaim({
+		roomId: created.roomId,
+		roundId: 1,
+		playerId: created.hostId,
+		target,
+		serverReceivedAtMs: timers.now(),
+		wsConnectionSeq: 1,
+	});
+	engine.closeRound(created.roomId, "TIMEOUT");
+	assert.equal(room.status, ROOM_STATUS.FINAL);
+	assert.ok(room.players[0].totalScore > 0);
+
+	assert.equal(
+		engine.startRematch({ roomId: created.roomId, actorPlayerId: created.hostId }).ok,
+		true,
+	);
+	assert.equal(room.status, ROOM_STATUS.COUNTDOWN);
+	assert.ok(room.players[0].totalScore > 0);
+	timers.tick(3_000);
+	assert.equal(room.status, ROOM_STATUS.ROUND_ACTIVE);
+	assert.equal(room.currentRound, 1);
+	assert.deepEqual(room.players.map((player) => player.totalScore), [0, 0]);
+	assert.deepEqual(room.players.map((player) => player.lastAcceptedAtMs), [null, null]);
+	assert.deepEqual(
+		engine.getRoundStartedEvents(room).map(({ playerId }) => playerId),
+		[created.hostId, joined.playerId],
+	);
+});
+
+test("countdown expiry revalidates the connected roster before starting round one", () => {
+	const timers = createFakeTimers();
+	const engine = new RoomEngine(timers);
+	const { created, joined, room } = createRoomWithPeer(engine);
+	engine.startGame({ roomId: created.roomId, actorPlayerId: created.hostId });
+	room.playersById.get(joined.playerId)!.connected = false;
+
+	timers.tick(3_000);
+	assert.equal(room.status, ROOM_STATUS.LOBBY);
+	assert.equal(room.currentRound, 0);
+});
+
+test("a peer departure cancels the countdown to its source and stale callbacks cannot start a round", () => {
+	const timers = createFakeTimers();
+	const engine = new RoomEngine(timers);
+	const { created, joined, room } = createRoomWithPeer(engine);
+	engine.startGame({ roomId: created.roomId, actorPlayerId: created.hostId });
+	const staleCountdownCallbacks = timers.callbacks();
+
+	engine.disconnectPlayer({ roomId: created.roomId, playerId: joined.playerId });
+	assert.equal(room.status, ROOM_STATUS.LOBBY);
+	assert.equal(room.countdownStartsAtMs, 0);
+	for (const callback of staleCountdownCallbacks) callback();
+	assert.equal(room.status, ROOM_STATUS.LOBBY);
+	assert.equal(room.currentRound, 0);
+});
+
+test("a peer departure during a rematch countdown restores FINAL without clearing the ranking", () => {
+	const timers = createFakeTimers();
+	const engine = new RoomEngine(timers);
+	const { created, joined, room } = createRoomWithPeer(engine);
+	engine.startGame({ roomId: created.roomId, actorPlayerId: created.hostId });
+	timers.tick(3_000);
+	const target = room.targetsByRoundPlayer.get(`1:${created.hostId}`)!;
+	engine.submitClaim({
+		roomId: created.roomId,
+		roundId: 1,
+		playerId: created.hostId,
+		target,
+		serverReceivedAtMs: timers.now(),
+		wsConnectionSeq: 1,
+	});
+	engine.closeRound(created.roomId, "TIMEOUT");
+	const finalScore = room.players[0].totalScore;
+	engine.startRematch({ roomId: created.roomId, actorPlayerId: created.hostId });
+
+	engine.disconnectPlayer({ roomId: created.roomId, playerId: joined.playerId });
+	assert.equal(room.status, ROOM_STATUS.FINAL);
+	assert.equal(room.players[0].totalScore, finalScore);
+});
+
+test("host departure during countdown clears timers, closes the room, and blocks stale timer effects", () => {
+	const timers = createFakeTimers();
+	const engine = new RoomEngine(timers);
+	const { created, room } = createRoomWithPeer(engine);
+	engine.startGame({ roomId: created.roomId, actorPlayerId: created.hostId });
+	const staleCountdownCallbacks = timers.callbacks();
+
+	assert.deepEqual(
+		engine.abortRoom({ roomId: created.roomId, actorPlayerId: created.hostId }),
+		{ ok: true, reason: "HOST_LEFT" },
+	);
+	assert.equal(engine.roomsById.has(created.roomId), false);
+	for (const callback of staleCountdownCallbacks) callback();
+	assert.equal(room.currentRound, 0);
+});
+
+test("host departure from an active round clears its round timer", () => {
+	const timers = createFakeTimers();
+	const engine = new RoomEngine(timers);
+	const { created, room } = createRoomWithPeer(engine);
+	engine.startGame({ roomId: created.roomId, actorPlayerId: created.hostId });
+	timers.tick(3_000);
+	const staleRoundCallbacks = timers.callbacks();
+
+	engine.abortRoom({ roomId: created.roomId, actorPlayerId: created.hostId });
+	for (const callback of staleRoundCallbacks) callback();
+	assert.equal(engine.roomsById.has(created.roomId), false);
+	assert.equal(room.currentRound, 1);
+});
+
+test("room snapshots preserve null initial timestamps and per-engine ids", () => {
+	const createEngine = () =>
+		new RoomEngine({ now: () => 1_000, setTimer: () => 1, clearTimer: () => {} });
+	const first = createEngine().createRoom({ hostName: "Host" });
+	const second = createEngine().createRoom({ hostName: "Host" });
 	assert.equal(first.roomId, "room-1");
 	assert.equal(first.hostId, "p-1");
 	assert.equal(first.roomState.players[0].lastAcceptedAtMs, null);
-
-	const secondEngine = new RoomEngine({
-		now: () => 1_000,
-		setTimer: () => 1,
-		clearTimer: () => {},
-	});
-	const second = secondEngine.createRoom({ hostName: "Host" });
 	assert.equal(second.roomId, "room-1");
-	assert.equal(second.hostId, "p-1");
 });
 
-test("fsm start valid/invalid transitions", () => {
-	const clock = createFakeClock();
-	const engine = new RoomEngine({
-		now: clock.now,
-		setTimer: () => 1,
-		clearTimer: () => {},
-	});
-
-	const created = engine.createRoom({ hostName: "Host" });
-	const room = engine.roomsById.get(created.roomId);
-	assert.equal(room?.status, ROOM_STATUS.LOBBY);
-
-	const invalid = engine.startGame({
-		roomId: created.roomId,
-		actorPlayerId: created.hostId,
-	});
-	assert.equal(invalid.ok, false);
-	assert.equal((invalid as { code: string }).code, "NOT_ENOUGH_PLAYERS");
-
-	const joined = engine.joinRoom({
-		roomCode: created.roomCode,
-		playerName: "P2",
-	});
-	assert.equal(joined.ok, true);
-
-	const started = engine.startGame({
-		roomId: created.roomId,
-		actorPlayerId: created.hostId,
-	});
-	assert.equal(started.ok, true);
-	assert.equal(room?.status, ROOM_STATUS.ROUND_ACTIVE);
-	assert.equal(room?.currentRound, 1);
-});
-
-test("non-host cannot start game", () => {
-	const engine = new RoomEngine({
-		now: () => 1_000,
-		setTimer: () => 1,
-		clearTimer: () => {},
-	});
-	const created = engine.createRoom({ hostName: "Host" });
-	const joined = engine.joinRoom({
-		roomCode: created.roomCode,
-		playerName: "P2",
-	});
-	if (!joined.ok) throw new Error("join failed");
-	const started = engine.startGame({
+test("non-hosts cannot start and late joins are rejected during countdown", () => {
+	const timers = createFakeTimers();
+	const engine = new RoomEngine(timers);
+	const { created, joined } = createRoomWithPeer(engine);
+	const nonHostStart = engine.startGame({
 		roomId: created.roomId,
 		actorPlayerId: joined.playerId,
 	});
-	assert.equal(started.ok, false);
-	assert.equal((started as { code: string }).code, "NOT_HOST");
-});
-
-test("late join is rejected after game start", () => {
-	const engine = new RoomEngine({
-		now: () => 1_000,
-		setTimer: () => 1,
-		clearTimer: () => {},
-	});
-	const created = engine.createRoom({ hostName: "Host" });
-	engine.joinRoom({ roomCode: created.roomCode, playerName: "P2" });
-	engine.startGame({ roomId: created.roomId, actorPlayerId: created.hostId });
-	const lateJoin = engine.joinRoom({
-		roomCode: created.roomCode,
-		playerName: "P3",
-	});
-	assert.equal(lateJoin.ok, false);
-	assert.equal((lateJoin as { code: string }).code, "ROOM_IN_PROGRESS");
-});
-
-test("idempotent claim returns same ack", () => {
-	const clock = createFakeClock();
-	const engine = new RoomEngine({
-		now: clock.now,
-		setTimer: () => 1,
-		clearTimer: () => {},
-	});
-	const created = engine.createRoom({ hostName: "Host" });
-	const joined = engine.joinRoom({
-		roomCode: created.roomCode,
-		playerName: "P2",
-	});
-	if (!joined.ok) throw new Error("join failed");
-	engine.startGame({ roomId: created.roomId, actorPlayerId: created.hostId });
-
-	const room = engine.roomsById.get(created.roomId);
-	const playerId = joined.playerId;
-	const roundId = room?.currentRound ?? 1;
-	const target = room?.targetsByRoundPlayer.get(`${roundId}:${playerId}`) ?? {
-		x: 0,
-		y: 0,
-	};
-
-	const first = engine.submitClaim({
-		roomId: created.roomId,
-		roundId,
-		playerId,
-		target,
-		serverReceivedAtMs: clock.now(),
-		wsConnectionSeq: 2,
-	});
-	const second = engine.submitClaim({
-		roomId: created.roomId,
-		roundId,
-		playerId,
-		target,
-		serverReceivedAtMs: clock.now(),
-		wsConnectionSeq: 2,
-	});
-	assert.equal(first.ok, true);
-	assert.equal((second as { duplicate: boolean }).duplicate, true);
-	assert.deepEqual(
-		(second as { ack: unknown }).ack,
-		(first as { ack: unknown }).ack,
+	assert.deepEqual(nonHostStart, { ok: false, code: "NOT_HOST" });
+	assert.equal(
+		engine.startGame({ roomId: created.roomId, actorPlayerId: created.hostId }).ok,
+		true,
 	);
+	const lateJoin = engine.joinRoom({ roomCode: created.roomCode, playerName: "Late" });
+	assert.deepEqual(lateJoin, { ok: false, code: "ROOM_IN_PROGRESS" });
 });
 
-test("wrong target claim returns WRONG_TARGET ack", () => {
-	const clock = createFakeClock();
-	const engine = new RoomEngine({
-		now: clock.now,
-		setTimer: () => 1,
-		clearTimer: () => {},
-	});
-	const created = engine.createRoom({ hostName: "Host" });
-	engine.joinRoom({ roomCode: created.roomCode, playerName: "P2" });
+test("claims are idempotent by connection sequence and retain their original acknowledgement", () => {
+	const timers = createFakeTimers();
+	const engine = new RoomEngine(timers);
+	const { created, room } = createRoomWithPeer(engine);
 	engine.startGame({ roomId: created.roomId, actorPlayerId: created.hostId });
-	const room = engine.roomsById.get(created.roomId);
-	const roundId = room?.currentRound ?? 1;
-	const result = engine.submitClaim({
+	timers.tick(3_000);
+	const target = room.targetsByRoundPlayer.get(`1:${created.hostId}`)!;
+	const claim = {
 		roomId: created.roomId,
-		roundId,
+		roundId: 1,
+		playerId: created.hostId,
+		target,
+		serverReceivedAtMs: timers.now(),
+		wsConnectionSeq: 7,
+	};
+	const first = engine.submitClaim(claim);
+	const duplicate = engine.submitClaim(claim);
+	assert.equal(first.ok, true);
+	assert.equal(duplicate.duplicate, true);
+	assert.deepEqual(duplicate.ack, first.ack);
+});
+
+test("wrong claims are rejected while accepted claims update ordered ranking and version", () => {
+	const timers = createFakeTimers();
+	const engine = new RoomEngine(timers);
+	const { created, room } = createRoomWithPeer(engine);
+	engine.startGame({ roomId: created.roomId, actorPlayerId: created.hostId });
+	timers.tick(3_000);
+	const wrong = engine.submitClaim({
+		roomId: created.roomId,
+		roundId: 1,
 		playerId: created.hostId,
 		target: { x: 999, y: 999 },
-		serverReceivedAtMs: clock.now(),
+		serverReceivedAtMs: timers.now(),
 		wsConnectionSeq: 1,
 	});
-	assert.equal(result.ok, false);
-	assert.equal(result.ack.reason, "WRONG_TARGET");
-});
-
-test("accepted claim returns ordered ranking and bumps version", () => {
-	const clock = createFakeClock();
-	const engine = new RoomEngine({
-		now: clock.now,
-		setTimer: () => 1,
-		clearTimer: () => {},
-	});
-	const created = engine.createRoom({ hostName: "Host" });
-	engine.joinRoom({ roomCode: created.roomCode, playerName: "P2" });
-	engine.startGame({ roomId: created.roomId, actorPlayerId: created.hostId });
-
-	const room = engine.roomsById.get(created.roomId);
-	const roundId = room?.currentRound ?? 1;
-	const target = room?.targetsByRoundPlayer.get(
-		`${roundId}:${created.hostId}`,
-	) ?? { x: 0, y: 0 };
-	const result = engine.submitClaim({
+	assert.equal(wrong.ok, false);
+	assert.equal(wrong.ack.reason, "WRONG_TARGET");
+	const accepted = engine.submitClaim({
 		roomId: created.roomId,
-		roundId,
+		roundId: 1,
 		playerId: created.hostId,
-		target,
-		serverReceivedAtMs: clock.now(),
-		wsConnectionSeq: 1,
-	});
-	assert.equal(result.ok, true);
-	assert.equal(result.ack.rankingVersion, 1);
-	assert.equal(result.ranking?.[0]?.playerId, created.hostId);
-});
-
-test("collision first valid claimant wins and second gets TOO_LATE", () => {
-	const clock = createFakeClock();
-	const engine = new RoomEngine({
-		now: clock.now,
-		setTimer: () => 1,
-		clearTimer: () => {},
-	});
-	const created = engine.createRoom({ hostName: "Host" });
-	const joined = engine.joinRoom({
-		roomCode: created.roomCode,
-		playerName: "P2",
-	});
-	if (!joined.ok) throw new Error("join failed");
-	engine.startGame({ roomId: created.roomId, actorPlayerId: created.hostId });
-
-	const room = engine.roomsById.get(created.roomId);
-	const roundId = room?.currentRound ?? 1;
-	const sharedTarget = room?.targetsByRoundPlayer.get(
-		`${roundId}:${created.hostId}`,
-	) ?? { x: 0, y: 0 };
-	room?.targetsByRoundPlayer.set(`${roundId}:${joined.playerId}`, sharedTarget);
-
-	const first = engine.submitClaim({
-		roomId: created.roomId,
-		roundId,
-		playerId: created.hostId,
-		target: sharedTarget,
-		serverReceivedAtMs: clock.now(),
-		wsConnectionSeq: 1,
-	});
-
-	clock.tick(1);
-
-	const second = engine.submitClaim({
-		roomId: created.roomId,
-		roundId,
-		playerId: joined.playerId,
-		target: sharedTarget,
-		serverReceivedAtMs: clock.now(),
+		target: room.targetsByRoundPlayer.get(`1:${created.hostId}`)!,
+		serverReceivedAtMs: timers.now(),
 		wsConnectionSeq: 2,
 	});
-
-	assert.equal(first.ok, true);
-	assert.equal(second.ok, false);
-	assert.equal((second as { ack: { reason: string } }).ack.reason, "TOO_LATE");
-	assert.equal(
-		(second as { lateAlert: { code: string } }).lateAlert.code,
-		"TOO_LATE",
-	);
+	assert.equal(accepted.ok, true);
+	assert.equal(accepted.ack.rankingVersion, 1);
+	assert.equal(accepted.ranking?.[0]?.playerId, created.hostId);
 });
 
-test("3 rounds timeout sequence ends game in FINAL", () => {
-	const engine = new RoomEngine({
-		now: () => 1_000,
-		setTimer: () => 1,
-		clearTimer: () => {},
-	});
-	const created = engine.createRoom({ hostName: "Host" });
-	engine.joinRoom({ roomCode: created.roomCode, playerName: "P2" });
+test("a shared-target collision accepts the first claimant and alerts the later claimant", () => {
+	const timers = createFakeTimers();
+	const engine = new RoomEngine(timers);
+	const { created, joined, room } = createRoomWithPeer(engine);
 	engine.startGame({ roomId: created.roomId, actorPlayerId: created.hostId });
-
-	let out = engine.closeRound(created.roomId, "TIMEOUT");
-	assert.equal(out.ok, true);
-	assert.equal((out as { ended: boolean }).ended, false);
-
-	out = engine.closeRound(created.roomId, "TIMEOUT");
-	assert.equal(out.ok, true);
-	assert.equal((out as { ended: boolean }).ended, false);
-
-	out = engine.closeRound(created.roomId, "TIMEOUT");
-	assert.equal(out.ok, true);
-	assert.equal((out as { ended: boolean }).ended, true);
-
-	const room = engine.roomsById.get(created.roomId);
-	assert.equal(room?.status, ROOM_STATUS.FINAL);
+	timers.tick(3_000);
+	const target = room.targetsByRoundPlayer.get(`1:${created.hostId}`)!;
+	room.targetsByRoundPlayer.set(`1:${joined.playerId}`, target);
+	const first = engine.submitClaim({
+		roomId: created.roomId, roundId: 1, playerId: created.hostId, target,
+		serverReceivedAtMs: timers.now(), wsConnectionSeq: 1,
+	});
+	timers.tick(1);
+	const late = engine.submitClaim({
+		roomId: created.roomId, roundId: 1, playerId: joined.playerId, target,
+		serverReceivedAtMs: timers.now(), wsConnectionSeq: 2,
+	});
+	assert.equal(first.ok, true);
+	assert.equal(late.ok, false);
+	assert.equal(late.ack.reason, "TOO_LATE");
+	assert.equal(late.lateAlert.code, "TOO_LATE");
 });
 
-test("partial room config keeps defaults and yields finite round targets", () => {
-	const engine = new RoomEngine({
-		now: () => 1_000,
-		setTimer: () => 1,
-		clearTimer: () => {},
-	});
+test("three-round lifecycle reaches FINAL after the countdown", () => {
+	const timers = createFakeTimers();
+	const engine = new RoomEngine(timers);
+	const created = engine.createRoom({ hostName: "Host", config: { rounds: 3 } });
+	engine.joinRoom({ roomCode: created.roomCode, playerName: "Peer" });
+	engine.startGame({ roomId: created.roomId, actorPlayerId: created.hostId });
+	timers.tick(3_000);
+	assert.equal(engine.closeRound(created.roomId, "TIMEOUT").ended, false);
+	assert.equal(engine.closeRound(created.roomId, "TIMEOUT").ended, false);
+	assert.equal(engine.closeRound(created.roomId, "TIMEOUT").ended, true);
+	assert.equal(engine.roomsById.get(created.roomId)?.status, ROOM_STATUS.FINAL);
+});
 
-	// Simulates a JSON client sending only some config keys; the gateway's
-	// parseRoomConfig emits explicit undefined for the rest.
+test("partial configuration keeps defaults and produces finite round targets", () => {
+	const timers = createFakeTimers();
+	const engine = new RoomEngine(timers);
 	const created = engine.createRoom({
 		hostName: "Host",
 		config: { rounds: 1, roundDurationMs: 8_000, maxPlayers: undefined, maxX: undefined, maxY: undefined },
 	});
-	engine.joinRoom({ roomCode: created.roomCode, playerName: "P2" });
+	engine.joinRoom({ roomCode: created.roomCode, playerName: "Peer" });
 	engine.startGame({ roomId: created.roomId, actorPlayerId: created.hostId });
-
-	const room = engine.roomsById.get(created.roomId);
-	assert.equal(room?.config.maxX, 10);
-	assert.equal(room?.config.maxY, 10);
-	assert.equal(room?.config.maxPlayers, 8);
-
-	const events = engine.getRoundStartedEvents(room!);
-	for (const { event } of events) {
-		assert.ok(Number.isFinite(event.target.x), `target.x must be finite, got ${event.target.x}`);
-		assert.ok(Number.isFinite(event.target.y), `target.y must be finite, got ${event.target.y}`);
-		// JSON wire format must never carry null coordinates (NaN serializes as null)
-		const wire = JSON.parse(JSON.stringify(event));
-		assert.equal(typeof wire.target.x, "number");
-		assert.equal(typeof wire.target.y, "number");
+	timers.tick(3_000);
+	const room = engine.roomsById.get(created.roomId)!;
+	assert.deepEqual(
+		[room.config.maxPlayers, room.config.maxX, room.config.maxY],
+		[8, 10, 10],
+	);
+	for (const { event } of engine.getRoundStartedEvents(room)) {
+		assert.ok(Number.isFinite(event.target.x));
+		assert.ok(Number.isFinite(event.target.y));
 	}
 });

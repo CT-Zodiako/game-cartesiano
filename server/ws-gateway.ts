@@ -1,6 +1,7 @@
 import {
 	RoomEngine,
 	type ClaimAck,
+	type CountdownTimeoutEvent,
 	type RoomState,
 	type RoundTimeoutEvent,
 } from "./room-engine.js";
@@ -26,6 +27,13 @@ interface AuditMetrics {
 	claim_too_late_total: number;
 	claim_duplicate_total: number;
 	claim_decision_ms: { count: number; total: number; max: number };
+}
+
+interface RoomClosedEvent {
+	type: "ROOM_CLOSED";
+	reqId: string;
+	reason: "HOST_LEFT";
+	message: string;
 }
 
 type ClaimAckWire = Omit<ClaimAck, "reason"> & {
@@ -71,6 +79,7 @@ export class WsGateway {
 			new RoomEngine({
 				now: options.now,
 				onRoundTimeout: (event) => this.handleRoundTimeout(event),
+				onCountdownTimeout: (event) => this.handleCountdownTimeout(event),
 			});
 	}
 
@@ -81,7 +90,10 @@ export class WsGateway {
 		return {
 			receive: (message: Record<string, unknown>) =>
 				this.receive(state, message),
-			close: () => this.connections.delete(state.seq),
+			close: () => {
+				this.departRoom(state, "");
+				this.connections.delete(state.seq);
+			},
 		};
 	}
 
@@ -112,6 +124,12 @@ export class WsGateway {
 				return;
 			case "START_GAME":
 				this.startGame(state, message);
+				return;
+			case "START_REMATCH":
+				this.startRematch(state, message);
+				return;
+			case "LEAVE_ROOM":
+				this.leaveRoom(state, message);
 				return;
 			case "SUBMIT_CLAIM":
 				this.submitClaim(state, message);
@@ -198,7 +216,47 @@ export class WsGateway {
 		}
 
 		const room = this.roomEngine.roomsById.get(message.roomId);
-		if (room) this.broadcastRoundStarted(room);
+		if (room) this.broadcastGameCountdown(room);
+	}
+
+	private startRematch(
+		state: ConnectionState,
+		message: Record<string, unknown>,
+	): void {
+		if (!isNonEmptyString(message.roomId) || !state.playerId) {
+			state.sender.send(this.error(message.reqId, "INVALID_REMATCH"));
+			return;
+		}
+
+		const started = this.roomEngine.startRematch({
+			roomId: message.roomId,
+			actorPlayerId: state.playerId,
+		});
+		if (!started.ok) {
+			state.sender.send(this.error(message.reqId, started.code));
+			return;
+		}
+
+		const room = this.roomEngine.roomsById.get(message.roomId);
+		if (room) this.broadcastGameCountdown(room);
+	}
+
+	private leaveRoom(
+		state: ConnectionState,
+		message: Record<string, unknown>,
+	): void {
+		if (
+			!isNonEmptyString(message.roomId) ||
+			!state.roomId ||
+			!state.playerId ||
+			message.roomId !== state.roomId
+		) {
+			state.sender.send(this.error(message.reqId, "INVALID_LEAVE"));
+			return;
+		}
+
+		const result = this.departRoom(state, message.reqId);
+		if (!result.ok) state.sender.send(this.error(message.reqId, result.code));
 	}
 
 	private submitClaim(
@@ -254,6 +312,13 @@ export class WsGateway {
 		}
 	}
 
+	private broadcastGameCountdown(room: RoomState): void {
+		const countdown = this.roomEngine.getGameCountdownEvent(room);
+		this.broadcast(room.roomId, () =>
+			this.withEnvelope({ reqId: "", ...countdown }),
+		);
+	}
+
 	private broadcastRoundStarted(room: RoomState): void {
 		const eventsByPlayer = new Map(
 			this.roomEngine
@@ -269,6 +334,15 @@ export class WsGateway {
 				}),
 			}),
 		);
+	}
+
+	private handleCountdownTimeout(event: CountdownTimeoutEvent): void {
+		if (!event.started) {
+			this.broadcastRoomSnapshot(event.room.roomId, "");
+			return;
+		}
+		if (event.resetScores) this.broadcastRoomSnapshot(event.room.roomId, "");
+		this.broadcastRoundStarted(event.room);
 	}
 
 	private handleRoundTimeout(event: RoundTimeoutEvent): void {
@@ -288,16 +362,75 @@ export class WsGateway {
 			}),
 		);
 		if (result.ended) {
-			this.broadcast(room.roomId, () =>
-				this.withEnvelope({
+			this.broadcast(room.roomId, (connection) => {
+				const snapshot = this.roomEngine.getRoomSnapshot(
+					room.roomId,
+					connection.playerId,
+				);
+				return this.withEnvelope({
 					type: "GAME_ENDED",
 					reqId: "",
 					finalRanking: this.roomEngine.getRanking(room),
-				}),
-			);
+					roomState: snapshot!.roomState,
+				});
+			});
 		} else {
 			this.broadcastRoundStarted(room);
 		}
+	}
+
+	private departRoom(state: ConnectionState, reqId: unknown) {
+		if (!state.roomId || !state.playerId)
+			return { ok: false as const, code: "ROOM_NOT_FOUND" };
+
+		const roomId = state.roomId;
+		const room = this.roomEngine.roomsById.get(roomId);
+		if (room?.hostId !== state.playerId) {
+			const disconnected = this.roomEngine.disconnectPlayer({
+				roomId,
+				playerId: state.playerId,
+			});
+			state.roomId = undefined;
+			state.playerId = undefined;
+			if (disconnected.ok) this.broadcastRoomSnapshot(roomId, reqId);
+			return { ok: false as const, code: "NOT_HOST" };
+		}
+
+		const result = this.roomEngine.abortRoom({
+			roomId,
+			actorPlayerId: state.playerId,
+		});
+		if (!result.ok) return result;
+
+		this.broadcast(roomId, () =>
+			this.withEnvelope<RoomClosedEvent>({
+				type: "ROOM_CLOSED",
+				reqId: typeof reqId === "string" ? reqId : "",
+				reason: result.reason,
+				message:
+					"The host left the room. Return to matchmaking to create or join another room.",
+			}),
+		);
+		for (const connection of this.connections.values()) {
+			if (connection.roomId === roomId) {
+				connection.roomId = undefined;
+				connection.playerId = undefined;
+			}
+		}
+		return result;
+	}
+
+	private broadcastRoomSnapshot(roomId: string, reqId: unknown): void {
+		this.broadcast(roomId, (connection) => {
+			const snapshot = this.roomEngine.getRoomSnapshot(
+				roomId,
+				connection.playerId,
+			);
+			return this.withEnvelope({
+				...snapshot,
+				reqId: typeof reqId === "string" ? reqId : "",
+			});
+		});
 	}
 
 	private broadcast(
