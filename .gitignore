@@ -34,3 +34,4 @@ build/
 .atl/
 .pi-lens/
 .pi/
+.codegraph/
