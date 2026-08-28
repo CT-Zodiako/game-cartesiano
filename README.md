@@ -1,4 +1,4 @@
-# Game Cartesiano
+# XY Arena
 
 Juego educativo de plano cartesiano - competencia multiplayer para ver quién ubica más rápido las coordenadas.
 

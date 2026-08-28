@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Plano Cartesiano</title>
+    <title>XY Arena</title>
     <script>
       (() => {
         const storageKey = "cartesian-game-theme";
@@ -551,6 +551,21 @@
         font-size: 1.1em;
         min-height: 24px;
       }
+      .game-title {
+        margin: 0 0 4px 0;
+        text-align: center;
+        font-family: 'Courier New', monospace;
+        font-size: clamp(2em, 8vw, 3.2em);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        color: var(--color-focus);
+        text-shadow:
+          0 1px 0 color-mix(in srgb, var(--color-focus) 60%, black),
+          0 2px 0 color-mix(in srgb, var(--color-focus) 50%, black),
+          0 3px 0 color-mix(in srgb, var(--color-focus) 40%, black),
+          0 4px 6px rgb(0 0 0 / 45%),
+          0 0 24px color-mix(in srgb, var(--color-focus) 55%, transparent);
+      }
       .connection-status {
         text-align: center;
         color: #94a3b8;
@@ -864,7 +879,7 @@
           toggle.setAttribute("aria-label", isLight ? "Usar tema oscuro" : "Usar tema claro");
         })();
       </script>
-        <h2>Plano Cartesiano</h2>
+        <h2 class="game-title">XY Arena</h2>
         <p id="connection-status" class="connection-status" role="status">Conectando con la sala...</p>
 
         <!-- Menú de entrada online -->
