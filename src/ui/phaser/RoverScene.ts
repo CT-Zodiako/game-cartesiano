@@ -80,7 +80,6 @@ export class RoverScene extends Phaser.Scene {
         this.scale.width,
         this.scale.height,
         DEFAULT_MARGIN,
-        6,
       );
       if (!cell) return;
 

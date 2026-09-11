@@ -61,7 +61,7 @@ export function pixelToCell(
   width: number,
   height: number,
   margin = DEFAULT_MARGIN,
-  vertexHitRadius = 6,
+  vertexHitRadius = 24,
 ): { x: number; y: number } | null {
   const w = width - margin * 2;
   const h = height - margin * 2;
@@ -90,7 +90,9 @@ export function pixelToCell(
   const dy = py - vertex.py;
   const distance = Math.hypot(dx, dy);
 
-  if (distance > vertexHitRadius) return null;
+  // Grow touch/cursor targets without overlapping neighboring vertices.
+  const hitRadius = Math.min(vertexHitRadius, Math.min(stepX, stepY) * 0.45);
+  if (distance > hitRadius) return null;
 
   return { x, y };
 }
