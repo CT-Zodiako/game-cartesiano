@@ -1,3 +1,5 @@
+import { randomInt } from "node:crypto";
+
 import {
 	ROOM_STATUS,
 	type ClaimAck,
@@ -92,6 +94,8 @@ export interface CountdownTimeoutEvent {
 
 export interface TimerApi {
 	now: () => number;
+	/** Returns an integer in [min, max), matching node:crypto randomInt. */
+	randomInt?: (min: number, max: number) => number;
 	setTimer?: (cb: () => void, delay: number) => unknown;
 	clearTimer?: (id: unknown) => void;
 	onRoundTimeout?: (event: RoundTimeoutEvent) => void;
@@ -116,15 +120,12 @@ function nextRoomCode(roomSeq: number): string {
 }
 
 function targetFor(
-	roundId: number,
-	playerIndex: number,
 	config: RoomConfig,
+	randomInteger: (min: number, max: number) => number,
 ): Point {
-	const width = config.maxX * 2 + 1;
-	const height = config.maxY * 2 + 1;
 	return {
-		x: ((roundId * 3 + playerIndex * 5) % width) - config.maxX,
-		y: ((roundId * 7 + playerIndex * 2) % height) - config.maxY,
+		x: randomInteger(-config.maxX, config.maxX + 1),
+		y: randomInteger(-config.maxY, config.maxY + 1),
 	};
 }
 
@@ -154,6 +155,7 @@ export class RoomEngine {
 	readonly roomsById = new Map<string, RoomState>();
 	private roomSeq = 0;
 	private playerSeq = 0;
+	private readonly randomInteger: (min: number, max: number) => number;
 	now: () => number;
 	setTimer: (cb: () => void, delay: number) => unknown;
 	clearTimer: (id: unknown) => void;
@@ -162,6 +164,7 @@ export class RoomEngine {
 
 	constructor(timerApi: TimerApi) {
 		this.now = timerApi.now;
+		this.randomInteger = timerApi.randomInt ?? randomInt;
 		this.onRoundTimeout = timerApi.onRoundTimeout;
 		this.onCountdownTimeout = timerApi.onCountdownTimeout;
 		this.setTimer =
@@ -367,10 +370,10 @@ export class RoomEngine {
 		room.acceptedPlayersByRound.set(room.currentRound, new Set());
 		room.claimAcksByKey.clear();
 
-		this.connectedPlayers(room).forEach((player, index) => {
+		this.connectedPlayers(room).forEach((player) => {
 			room.targetsByRoundPlayer.set(
 				`${room.currentRound}:${player.playerId}`,
-				targetFor(room.currentRound, index, room.config),
+				targetFor(room.config, this.randomInteger),
 			);
 			room.scoreDeltaByRoundPlayer.delete(
 				`${room.currentRound}:${player.playerId}`,

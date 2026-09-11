@@ -105,6 +105,63 @@ test("rematch preserves final scores through countdown and resets them only at e
 	);
 });
 
+test("injected random sequences reproduce targets and can change them on rematches within bounds", () => {
+	for (const bounds of [{ maxX: 2, maxY: 3 }, { maxX: 0, maxY: 1 }, { maxX: 1, maxY: 0 }]) {
+		const playMatches = () => {
+			const timers = createFakeTimers();
+			const calls: [number, number][] = [];
+			const engine = new RoomEngine({
+				...timers,
+				randomInt: (min: number, max: number) => {
+					calls.push([min, max]);
+					return calls.length <= 4 ? min : max - 1;
+				},
+			});
+			const created = engine.createRoom({ hostName: "Host", config: { rounds: 1, ...bounds } });
+			engine.joinRoom({ roomCode: created.roomCode, playerName: "Peer" });
+			const room = engine.roomsById.get(created.roomId)!;
+			const actor = { roomId: created.roomId, actorPlayerId: created.hostId };
+			engine.startGame(actor);
+			timers.tick(3_000);
+			const first = engine.getRoundStartedEvents(room);
+			engine.closeRound(created.roomId, "TIMEOUT");
+			assert.equal(engine.startRematch(actor).ok, true);
+			timers.tick(3_000);
+			const second = engine.getRoundStartedEvents(room);
+			assert.deepEqual(calls, Array.from({ length: 4 }, () => [
+				[-bounds.maxX, bounds.maxX + 1],
+				[-bounds.maxY, bounds.maxY + 1],
+			]).flat());
+			assert.deepEqual(first.map(({ event }) => event.target), [
+				{ x: -bounds.maxX, y: -bounds.maxY },
+				{ x: -bounds.maxX, y: -bounds.maxY },
+			]);
+			assert.deepEqual(second.map(({ event }) => event.target), [
+				{ x: bounds.maxX, y: bounds.maxY },
+				{ x: bounds.maxX, y: bounds.maxY },
+			]);
+			for (const previous of first) {
+				const current = second.find(({ playerId }) => playerId === previous.playerId)!;
+				assert.notDeepEqual(current.event.target, previous.event.target);
+			}
+			for (const { event } of [...first, ...second]) {
+				assert.ok(Number.isInteger(event.target.x));
+				assert.ok(Number.isInteger(event.target.y));
+				assert.ok(Math.abs(event.target.x) <= bounds.maxX);
+				assert.ok(Math.abs(event.target.y) <= bounds.maxY);
+			}
+			const claim = {
+				roomId: created.roomId, roundId: 1, playerId: created.hostId,
+				serverReceivedAtMs: timers.now(),
+			};
+			assert.equal(engine.submitClaim({ ...claim, target: first[0].event.target, wsConnectionSeq: 1 }).ack.reason, "WRONG_TARGET");
+			assert.equal(engine.submitClaim({ ...claim, target: second[0].event.target, wsConnectionSeq: 2 }).ok, true);
+			return [first, second];
+		};
+		assert.deepEqual(playMatches(), playMatches());
+	}
+});
+
 test("countdown expiry revalidates the connected roster before starting round one", () => {
 	const timers = createFakeTimers();
 	const engine = new RoomEngine(timers);
