@@ -1,3 +1,4 @@
+import { SoundManager } from "@infrastructure/audio/sound-manager.ts";
 import type { RoverState } from "@domain/rover/types.ts";
 import { RoverScene } from "@ui/phaser/RoverScene.ts";
 import { createStatePanel } from "@ui/dom/statePanel.ts";
@@ -39,6 +40,12 @@ function boardSize(): { width: number; height: number } {
 }
 
 // ── Phaser setup ───────────────────────────────────────────────────────────
+
+const sounds = new SoundManager();
+// Capture gestures before the board handles selection; retry if audio was suspended.
+for (const gesture of ["pointerdown", "keydown"] as const) {
+	document.addEventListener(gesture, () => { void sounds.unlock(); }, { capture: true });
+}
 
 const scene = new RoverScene();
 const initialSize = boardSize();
@@ -183,6 +190,9 @@ const onlineState: OnlineState = {
 	ranking: [],
 };
 let isFinalRankingModalOpen = false;
+let snapshotRoomId: string | null = null;
+let connectedPlayerIds = new Set<string>();
+const urgentSecondsPlayed = new Set<number>();
 
 // ── Online mode helpers ─────────────────────────────────────────────────────
 
@@ -245,6 +255,9 @@ function setConnectionStatus(message: string, isError = false): void {
 }
 
 function resetOnlineRoom(): void {
+	snapshotRoomId = null;
+	connectedPlayerIds.clear();
+	urgentSecondsPlayed.clear();
 	onlineState.roomId = null;
 	onlineState.roomCode = null;
 	onlineState.playerId = null;
@@ -309,6 +322,15 @@ function initOnlineMode(): void {
 
 	handleRoomSnapshot(ws, (roomState, yourPlayerId) => {
 		hasHostLeftClosureNotice = false;
+		const nextConnectedIds = new Set(
+			roomState.players.filter((player) => player.connected).map((player) => player.playerId),
+		);
+		if (snapshotRoomId === roomState.roomId &&
+			[...nextConnectedIds].some((id) => !connectedPlayerIds.has(id))) {
+			sounds.play("playerJoined");
+		}
+		snapshotRoomId = roomState.roomId;
+		connectedPlayerIds = nextConnectedIds;
 		if (yourPlayerId) onlineState.playerId = yourPlayerId;
 		syncLobbyUi(roomState);
 		// Si hay roomId, mostrar lobby
@@ -319,6 +341,7 @@ function initOnlineMode(): void {
 	});
 
 	handleGameCountdown(ws, (event: GameCountdownEvent) => {
+		sounds.play("countdown");
 		closeFinalRankingModal();
 		onlineState.status = "COUNTDOWN";
 		onlineState.countdownStartsAtMs = event.startsAtMs;
@@ -334,6 +357,8 @@ function initOnlineMode(): void {
 	});
 
 	handleRoundStarted(ws, (event: RoundStartedEvent) => {
+		urgentSecondsPlayed.clear();
+		sounds.play("roundStart");
 		closeFinalRankingModal();
 		onlineState.status = "ROUND_ACTIVE";
 		onlineState.countdownStartsAtMs = null;
@@ -359,6 +384,8 @@ function initOnlineMode(): void {
 	});
 
 	handleClaimAck(ws, (event) => {
+		sounds.play(event.status === "ACCEPTED" ? "correct"
+			: event.reason === "TOO_LATE" ? "timeout" : "wrong");
 		if (event.status === "ACCEPTED") {
 			feedbackText!.textContent = `✅ Correcto! +${event.pointsEarned} puntos`;
 			feedbackText!.style.color = "#4ade80";
@@ -378,6 +405,7 @@ function initOnlineMode(): void {
 	});
 
 	handleLateAlert(ws, (event) => {
+		sounds.play("timeout");
 		panel.setLateAlert(event.message || "Llegaste tarde.");
 	});
 
@@ -503,6 +531,13 @@ function initOnlineMode(): void {
 			onlineState.countdownStartsAtMs ?? onlineState.deadlineMs;
 		if (!deadlineMs) return;
 		panel.setCountdown(deadlineMs);
+		const remainingSeconds = Math.ceil((deadlineMs - Date.now()) / 1000);
+		if (onlineState.status === "ROUND_ACTIVE" &&
+			remainingSeconds >= 1 && remainingSeconds <= 5 &&
+			!urgentSecondsPlayed.has(remainingSeconds)) {
+			urgentSecondsPlayed.add(remainingSeconds);
+			sounds.play("urgent");
+		}
 	}, 250);
 
 	ws.connect(wsUrl);
@@ -510,6 +545,7 @@ function initOnlineMode(): void {
 
 // Callback para actualizar "Tu elección" cuando se selecciona una celda
 scene.setCellSelectedCallback(({ x, y }) => {
+	sounds.play("tap");
 	selectedPosition = { x, y };
 	const coordEl = document.getElementById("selected-coord");
 	if (coordEl) coordEl.textContent = `(${x}, ${y})`;
@@ -579,6 +615,10 @@ function showFinalRankingModal(ranking: RankingEntry[]): void {
 		(a, b) => b.totalScore - a.totalScore,
 	);
 	const currentPlayerId = onlineState.playerId;
+	if (!isFinalRankingModalOpen && currentPlayerId &&
+		sortedRanking[0]?.playerId === currentPlayerId) {
+		sounds.play("victory");
+	}
 
 	// Renderizar podium (top 3)
 	const podium = modal.querySelector("#podium") as HTMLElement;

@@ -13,6 +13,24 @@ test("the browser entry point offers only online room matchmaking", () => {
 	assert.doesNotMatch(indexHtml, /single-player|\?online=1/iu);
 });
 
+test("the lobby replaces the competitive notice with tap selection guidance", () => {
+	assert.doesNotMatch(indexHtml, /online-rules-notice|Modo Competitivo|notice-title|notice-list/);
+	const lobbyMarkup = indexHtml.slice(indexHtml.indexOf('id="online-lobby"'));
+	assert.match(lobbyMarkup, /class="tap-instruction"/);
+	assert.match(lobbyMarkup, /Tocá o hacé clic en un punto de la grilla para seleccionar la coordenada\./);
+	assert.match(lobbyMarkup, /<strong>No arrastres\.<\/strong>/);
+});
+
+test("the tap demonstration is decorative, non-blocking, and motion accessible", () => {
+	assert.match(indexHtml, /<span class="tap-demo" aria-hidden="true"><\/span>/);
+	assert.match(indexHtml, /\.tap-demo\s*\{[^}]*pointer-events: none;/);
+	assert.match(indexHtml, /\.tap-demo::before\s*\{[^}]*animation: tap-point 2s ease-in-out infinite;/);
+	assert.match(indexHtml, /\.tap-demo::after\s*\{[^}]*animation: tap-pointer 2s ease-in-out infinite;/);
+	assert.match(indexHtml, /@keyframes tap-pointer\s*\{/);
+	assert.match(indexHtml, /@keyframes tap-point\s*\{/);
+	assert.match(indexHtml, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.tap-demo::before, \.tap-demo::after\s*\{ animation: none; \}/);
+});
+
 test("the browser boot always initializes multiplayer without an offline branch", () => {
 	assert.match(mainSource, /initOnlineMode\(\);\s*$/);
 	assert.doesNotMatch(
