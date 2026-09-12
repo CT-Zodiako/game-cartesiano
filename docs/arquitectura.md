@@ -191,7 +191,7 @@ pointsEarned = Math.max(100, Math.floor(1000 * (1 - elapsed / roundDurationMs)))
   maxPlayers: 8,
   rounds: 3,
   roundDurationMs: 20000,  // 20 segundos
-  maxX: 10,
-  maxY: 10
+  maxX: 6,
+  maxY: 6
 }
 ```

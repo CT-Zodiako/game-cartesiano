@@ -27,12 +27,12 @@ import { deriveWsUrl } from "@infrastructure/ws/url.ts";
 
 // ── Plateau config ─────────────────────────────────────────────────────────
 
-let plateau = { xMax: 10, yMax: 10 };
+let plateau = { xMax: 6, yMax: 6 };
 
 function positiveBoardBound(value: unknown): number {
 	return typeof value === "number" && Number.isFinite(value) && value > 0
 		? value
-		: 10;
+		: 6;
 }
 
 // ── Board sizing ────────────────────────────────────────────────────────────
@@ -164,6 +164,18 @@ const configMobileBoard = document.getElementById(
 if (configMobileBoard) {
 	configMobileBoard.checked = window.matchMedia("(max-width: 900px)").matches;
 }
+
+const syncMobileBoardConfig = (): void => {
+	if (!configMobileBoard || !configMaxXy) return;
+	if (configMobileBoard.checked) {
+		configMaxXy.dataset.previousValue = configMaxXy.value;
+		configMaxXy.value = "6";
+		return;
+	}
+	configMaxXy.value = configMaxXy.dataset.previousValue || "6";
+};
+configMobileBoard?.addEventListener("change", syncMobileBoardConfig);
+syncMobileBoardConfig();
 
 const feedbackText = document.getElementById("feedback-text");
 const connectionStatus = document.getElementById("connection-status");
@@ -312,7 +324,7 @@ function setConnectionStatus(message: string, isError = false): void {
 }
 
 function resetOnlineRoom(): void {
-	plateau = { xMax: 10, yMax: 10 };
+	plateau = { xMax: 6, yMax: 6 };
 	setRover({ x: 0, y: 0, orientation: "N" });
 	snapshotRoomId = null;
 	connectedPlayerIds.clear();
@@ -368,7 +380,7 @@ function initOnlineMode(): void {
 
 	ws.on("connected", () => {
 		onlineState.connected = true;
-		setConnectionStatus("Conectado. Podés crear o unirte a una sala.");
+		setConnectionStatus("");
 	});
 
 	ws.on("disconnected", () => {
@@ -538,7 +550,7 @@ function initOnlineMode(): void {
 		const seconds = parseInt(configSeconds?.value || "20");
 		const maxXy = configMobileBoard?.checked
 			? 6
-			: parseInt(configMaxXy?.value || "10");
+			: parseInt(configMaxXy?.value || "6");
 		const config = {
 			maxPlayers,
 			rounds,

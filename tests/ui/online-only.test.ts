@@ -15,7 +15,7 @@ test("the browser entry point offers only online room matchmaking", () => {
 
 test("tap selection guidance stays in the game header without taking board space", () => {
 	assert.doesNotMatch(indexHtml, /online-rules-notice|Modo Competitivo|notice-title|notice-list/);
-	assert.match(indexHtml, /<div class="tap-hint" role="note">\s*<span class="tap-demo" aria-hidden="true"><\/span>\s*<span class="tap-hint-copy">\s*<span>Tocá en el vértice de la grilla<\/span>\s*<small>No arrastres<\/small>/);
+	assert.match(indexHtml, /<div class="tap-hint" role="note">\s*<span class="tap-demo" aria-hidden="true"><\/span>\s*<span class="tap-hint-copy">\s*<span>Toca en el vértice de la cuadrícula<\/span>\s*<small>No arrastres<\/small>/);
 	assert.equal(indexHtml.match(/class="tap-hint"/g)?.length, 1);
 	assert.doesNotMatch(indexHtml, /class="tap-instruction"/);
 	assert.match(indexHtml, /\.tap-hint\s*\{[^}]*font-size: 0\.7em;[^}]*text-align: right;/);
@@ -39,7 +39,7 @@ test("mobile puts a viewport-sized square game stage before scrollable controls"
 test("tap guidance is compact and aligned in the header", () => {
 	assert.match(indexHtml, /\.tap-hint span \{ color: var\(--color-text\); font-weight: 700; \}/);
 	assert.match(indexHtml, /\.tap-hint small \{ font-size: 0\.9em; \}/);
-	assert.match(indexHtml, /Tocá en el vértice de la grilla/);
+	assert.match(indexHtml, /Toca en el vértice de la cuadrícula/);
 	assert.doesNotMatch(indexHtml, /👆 Tocá un punto/);
 	assert.match(indexHtml, /\.tap-hint \.tap-demo\s*\{[^}]*transform: scale\(0\.66\);/);
 	assert.match(indexHtml, /\.tap-demo::before\s*\{[^}]*animation: tap-point 2s ease-in-out infinite;/);
@@ -55,11 +55,12 @@ test("the host can select a reduced mobile coordinate range in room configuratio
 	assert.match(configuration, /<label for="config-mobile-board">/);
 	assert.match(configuration, /<input id="config-mobile-board" type="checkbox" role="switch" \/>/);
 	assert.match(configuration, /Tablero móvil: rango reducido ±6 \(de -6 a 6\) para mayor precisión táctil\./);
-	assert.match(configuration, /id="config-max-xy" type="number" value="10"/);
+	assert.match(configuration, /id="config-max-xy" type="number" value="6"/);
 });
 
 test("room configuration uses a prominent native disclosure with keyboard and touch feedback", () => {
-	assert.match(indexHtml, /<details class="config-section">\s*<summary>⚙ Configurar sala<\/summary>/);
+	assert.match(indexHtml, /<details class="config-section">\s*<summary>Configurar sala<\/summary>/);
+	assert.doesNotMatch(indexHtml, /<summary>⚙/);
 	assert.match(indexHtml, /\.config-section summary\s*\{[^}]*min-height: 48px;[^}]*padding: 14px 16px;[^}]*border: 2px solid var\(--color-focus\);[^}]*font-size: 16px;[^}]*font-weight: 700;/);
 	assert.match(indexHtml, /\.config-section summary::marker\s*\{/);
 	assert.doesNotMatch(indexHtml, /summary[^{}]*\{[^}]*list-style:\s*none|summary::-webkit-details-marker/);
@@ -83,6 +84,8 @@ test("mobile defaults follow screen size once without overriding the host choice
 	assert.match(mainSource, /const configMobileBoard = document\.getElementById\(\s*"config-mobile-board",?\s*\) as HTMLInputElement \| null;/);
 	assert.match(mainSource, /configMobileBoard\.checked = window\.matchMedia\("\(max-width: 900px\)"\)\.matches;/);
 	assert.equal(mainSource.match(/configMobileBoard\.checked\s*=/g)?.length, 1);
+	assert.match(mainSource, /configMaxXy\.value = "6";/);
+	assert.match(mainSource, /configMobileBoard\?\.addEventListener\("change", syncMobileBoardConfig\);/);
 });
 
 test("room creation applies mobile bounds or preserves the configured symmetric range", () => {
@@ -90,21 +93,21 @@ test("room creation applies mobile bounds or preserves the configured symmetric 
 		mainSource.indexOf('confirmCreateBtn?.addEventListener("click"'),
 		mainSource.indexOf('confirmJoinBtn?.addEventListener("click"'),
 	);
-	assert.match(createSource, /const maxXy = configMobileBoard\?\.checked\s*\? 6\s*: parseInt\(configMaxXy\?\.value \|\| "10"\);/);
+	assert.match(createSource, /const maxXy = configMobileBoard\?\.checked\s*\? 6\s*: parseInt\(configMaxXy\?\.value \|\| "6"\);/);
 	assert.match(createSource, /maxX: maxXy,\s*maxY: maxXy,/);
 	assert.match(createSource, /ws\.createRoom\(playerName, config\);/);
 });
 
 test("room snapshots render configured bounds before rounds and reset to the default board", () => {
-	assert.match(mainSource, /let plateau = \{ xMax: 10, yMax: 10 \};/);
+	assert.match(mainSource, /let plateau = \{ xMax: 6, yMax: 6 \};/);
 	const syncSource = mainSource.slice(
 		mainSource.indexOf("function syncLobbyUi"),
 		mainSource.indexOf("function resetOnlineRoom"),
 	);
 	assert.match(syncSource, /plateau = \{\s*xMax: positiveBoardBound\(roomState\.config\?\.maxX\),\s*yMax: positiveBoardBound\(roomState\.config\?\.maxY\),\s*\};\s*setRover\(/);
 	assert.match(mainSource, /handleRoomSnapshot\(ws,[\s\S]*?syncLobbyUi\(roomState\);/);
-	assert.match(mainSource, /typeof value === "number" && Number\.isFinite\(value\) && value > 0\s*\? value\s*: 10;/);
-	assert.match(mainSource, /function resetOnlineRoom\(\): void \{\s*plateau = \{ xMax: 10, yMax: 10 \};\s*setRover\(/);
+	assert.match(mainSource, /typeof value === "number" && Number\.isFinite\(value\) && value > 0\s*\? value\s*: 6;/);
+	assert.match(mainSource, /function resetOnlineRoom\(\): void \{\s*plateau = \{ xMax: 6, yMax: 6 \};\s*setRover\(/);
 	assert.match(mainSource, /scene\.setScenario\(plateau, state\);/);
 	assert.doesNotMatch(mainSource, /scene\.setScenario\(PLATEAU, state\)/);
 });

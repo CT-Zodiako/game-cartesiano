@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>XY Arena</title>
+    <link rel="icon" type="image/png" href="/assets/logo.png" />
+    <link rel="apple-touch-icon" href="/assets/logo.png" />
     <script>
       (() => {
         const storageKey = "cartesian-game-theme";
@@ -20,31 +22,31 @@
     <style>
       :root {
         color-scheme: dark;
-        --color-canvas: #0f172a;
-        --color-surface: #1e293b;
-        --color-surface-input: #0b1220;
-        --color-surface-raised: #334155;
-        --color-text: #e2e8f0;
-        --color-text-muted: #94a3b8;
-        --color-text-subtle: #64748b;
-        --color-border: #334155;
-        --color-border-subtle: #1e293b;
-        --color-focus: #22d3ee;
-        --color-focus-contrast: #0f172a;
+        --color-canvas: #050b2e;
+        --color-surface: #0b1645;
+        --color-surface-input: #050a25;
+        --color-surface-raised: #12265f;
+        --color-text: #eef7ff;
+        --color-text-muted: #a7bad8;
+        --color-text-subtle: #7187b5;
+        --color-border: #21458e;
+        --color-border-subtle: #14295e;
+        --color-focus: #16e7ff;
+        --color-focus-contrast: #050b2e;
         --color-overlay: rgb(0 0 0 / 85%);
       }
       :root[data-theme="light"] {
         color-scheme: light;
-        --color-canvas: #e2e8f0;
-        --color-surface: #f8fafc;
-        --color-surface-input: #ffffff;
-        --color-surface-raised: #cbd5e1;
-        --color-text: #0f172a;
-        --color-text-muted: #475569;
-        --color-text-subtle: #64748b;
-        --color-border: #94a3b8;
-        --color-border-subtle: #cbd5e1;
-        --color-focus: #0891b2;
+        --color-canvas: #eef7ff;
+        --color-surface: #ffffff;
+        --color-surface-input: #f5f9ff;
+        --color-surface-raised: #dcecff;
+        --color-text: #08133d;
+        --color-text-muted: #405477;
+        --color-text-subtle: #60769e;
+        --color-border: #9eb9e8;
+        --color-border-subtle: #c9dcfa;
+        --color-focus: #087ee8;
         --color-focus-contrast: #ffffff;
         --color-overlay: rgb(15 23 42 / 65%);
       }
@@ -92,13 +94,13 @@
         --theme-toggle-inset: 0.25rem;
         --theme-toggle-thumb-size: 2.125rem;
         position: relative;
-        display: inline-grid;
+        display: grid;
         box-sizing: border-box;
         width: 4.75rem;
         height: 2.75rem;
         min-width: 0;
         min-height: 0;
-        margin: 0 0 12px;
+        margin: 0 auto 12px;
         padding: 0;
         border: 1px solid var(--color-border);
         border-radius: 999px;
@@ -151,6 +153,16 @@
       }
       .hidden { display: none; }
       .config-section { margin: 16px 0; }
+      .online-form-panel .form-group input {
+        min-height: 56px;
+        padding: 14px 16px;
+        font-size: 18px;
+        font-weight: 600;
+      }
+      #room-code-join {
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
       .config-section summary {
         box-sizing: border-box;
         min-height: 48px;
@@ -211,8 +223,8 @@
       
       /* Header del juego - estilo marcador NBA */
       .game-header {
-        display: flex;
-        justify-content: space-between;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
         align-items: center;
         padding: 12px 20px;
         background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
@@ -273,12 +285,13 @@
         line-height: 1;
       }
       
-      /* Tiempo - derecha */
+      /* Tiempo - izquierda */
       .time-display {
         display: flex;
         flex-direction: column;
-        align-items: flex-end;
+        align-items: flex-start;
       }
+      .game-header .tap-hint { justify-self: end; }
       .time-label {
         font-size: 0.75em;
         color: #94a3b8;
@@ -658,20 +671,19 @@
         font-size: 1.1em;
         min-height: 24px;
       }
-      .game-title {
-        margin: 0 0 4px 0;
-        text-align: center;
-        font-family: 'Courier New', monospace;
-        font-size: clamp(2em, 8vw, 3.2em);
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        color: var(--color-focus);
-        text-shadow:
-          0 1px 0 color-mix(in srgb, var(--color-focus) 60%, black),
-          0 2px 0 color-mix(in srgb, var(--color-focus) 50%, black),
-          0 3px 0 color-mix(in srgb, var(--color-focus) 40%, black),
-          0 4px 6px rgb(0 0 0 / 45%),
-          0 0 24px color-mix(in srgb, var(--color-focus) 55%, transparent);
+      .game-brand {
+        display: grid;
+        justify-items: center;
+        gap: 2px;
+        margin: 0 0 8px;
+      }
+      .game-brand-logo {
+        display: block;
+        width: min(100%, 220px);
+        height: auto;
+        max-height: 150px;
+        object-fit: contain;
+        filter: drop-shadow(0 0 18px rgb(22 231 255 / 24%));
       }
       .connection-status {
         text-align: center;
@@ -1105,13 +1117,13 @@
           toggle.setAttribute("aria-label", isLight ? "Usar tema oscuro" : "Usar tema claro");
         })();
       </script>
-        <h2 class="game-title">XY Arena</h2>
+        <div class="game-brand">
+          <img class="game-brand-logo" src="/assets/logo.png" alt="XY Arena" />
+        </div>
         <p id="connection-status" class="connection-status" role="status">Conectando con la sala...</p>
 
         <!-- Menú de entrada online -->
           <div id="online-entry-menu" class="online-menu">
-            <h3 class="online-menu-title">Modo Online</h3>
-            <p class="online-menu-subtitle">Elige una opción para comenzar</p>
             <div class="online-menu-buttons">
               <button id="btn-create-room" class="online-menu-btn create">
                 <span class="menu-btn-icon">➕</span>
@@ -1135,13 +1147,13 @@
               <input id="player-name-create" placeholder="Ingresa tu nombre" />
             </div>
             <details class="config-section">
-              <summary>⚙ Configurar sala</summary>
+              <summary>Configurar sala</summary>
               <div class="config-fields">
               <label for="config-max-players">Máximo de jugadores: <input id="config-max-players" type="number" value="8" min="2" max="20" /></label>
               <label for="config-rounds">Cantidad de rondas: <input id="config-rounds" type="number" value="3" min="1" max="10" /></label>
               <label for="config-seconds">Segundos por ronda: <input id="config-seconds" type="number" value="20" min="5" max="120" /></label>
               <label for="config-mobile-board"><input id="config-mobile-board" type="checkbox" role="switch" /> Tablero móvil: rango reducido ±6 (de -6 a 6) para mayor precisión táctil.</label>
-              <label for="config-max-xy">Coordenada máxima por eje: <input id="config-max-xy" type="number" value="10" min="1" max="20" /></label>
+              <label for="config-max-xy">Coordenada máxima por eje: <input id="config-max-xy" type="number" value="6" min="1" max="20" /></label>
               </div>
             </details>
             <button id="btn-confirm-create" class="action-btn create">Crear Sala</button>
@@ -1199,18 +1211,18 @@
       <section class="right">
 <!-- Header con coordenada, objetivo y tiempo -->
       <div class="game-header">
-        <div class="target-display">
-          <span class="target-label">🎯 Buscá este punto</span>
-          <span class="target-value" id="target-coord">(0, 0)</span>
-        </div>
         <div class="time-display">
           <span class="time-label">Tiempo</span>
           <span class="time-value" data-role="countdown">—</span>
         </div>
+        <div class="target-display">
+          <span class="target-label">🎯 Buscá este punto</span>
+          <span class="target-value" id="target-coord">(0, 0)</span>
+        </div>
         <div class="tap-hint" role="note">
           <span class="tap-demo" aria-hidden="true"></span>
           <span class="tap-hint-copy">
-            <span>Tocá en el vértice de la grilla</span>
+            <span>Toca en el vértice de la cuadrícula</span>
             <small>No arrastres</small>
           </span>
         </div>

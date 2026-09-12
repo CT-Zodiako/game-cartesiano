@@ -18,24 +18,24 @@ interface BoardPalette {
 
 export const BOARD_PALETTES: Record<BoardTheme, BoardPalette> = {
   dark: {
-    background: 0x0f172a,
-    grid: 0x64748b,
-    axis: 0x94a3b8,
-    label: '#cbd5e1',
-    axisLabel: '#e2e8f0',
-    path: 0xa3e635,
-    marker: 0xfacc15,
+    background: 0x050b2e,
+    grid: 0x4c7dff,
+    axis: 0x16e7ff,
+    label: '#ff7bea',
+    axisLabel: '#eef7ff',
+    path: 0xff00d4,
+    marker: 0x16e7ff,
     markerOutline: 0xffffff,
   },
   light: {
-    background: 0xe2e8f0,
-    grid: 0x64748b,
-    axis: 0x475569,
-    label: '#334155',
-    axisLabel: '#0f172a',
-    path: 0x4d7c0f,
-    marker: 0x7c3aed,
-    markerOutline: 0x0f172a,
+    background: 0xeef7ff,
+    grid: 0x4774b8,
+    axis: 0x087ee8,
+    label: '#a21caf',
+    axisLabel: '#08133d',
+    path: 0xc026d3,
+    marker: 0x087ee8,
+    markerOutline: 0x08133d,
   },
 };
 
@@ -187,20 +187,22 @@ export class RoverScene extends Phaser.Scene {
     for (let x = -this.plateau.xMax; x <= this.plateau.xMax; x += 1) {
       if (x === 0) continue;
       const p = cellToPixel(x, 0, this.plateau, this.scale.width, this.scale.height, margin);
-      const txt = this.add.text(p.px - 4, centerY + 8, String(x), { fontSize: '13px', color: palette.label });
+      const txt = this.add.text(p.px, centerY + 8, String(x), { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: palette.label, fontStyle: 'bold', resolution: 2 });
+      txt.setOrigin?.(0.5, 0);
       this.axisTexts.push(txt);
     }
     // Y axis labels (left)
     for (let y = -this.plateau.yMax; y <= this.plateau.yMax; y += 1) {
       if (y === 0) continue;
       const p = cellToPixel(0, y, this.plateau, this.scale.width, this.scale.height, margin);
-      const txt = this.add.text(centerX - 25, p.py - 8, String(y), { fontSize: '13px', color: palette.label });
+      const txt = this.add.text(centerX - 8, p.py - 8, String(y), { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: palette.label, fontStyle: 'bold', resolution: 2 });
+      txt.setOrigin?.(1, 0);
       this.axisTexts.push(txt);
     }
     // Axis labels
     this.axisTexts.push(
-      this.add.text(margin + w + 8, centerY + 8, 'X', { fontSize: '13px', color: palette.axisLabel, fontStyle: 'bold' }),
-      this.add.text(centerX + 8, margin - 20, 'Y', { fontSize: '13px', color: palette.axisLabel, fontStyle: 'bold' }),
+      this.add.text(margin + w + 12, centerY - 10, 'X', { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: palette.axisLabel, fontStyle: 'bold', resolution: 2 }),
+      this.add.text(centerX + 10, margin - 28, 'Y', { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: palette.axisLabel, fontStyle: 'bold', resolution: 2 }),
     );
 
     // Path line

@@ -106,8 +106,8 @@ const defaultConfig: RoomConfig = {
 	maxPlayers: 8,
 	rounds: 3,
 	roundDurationMs: 20_000,
-	maxX: 10,
-	maxY: 10,
+	maxX: 6,
+	maxY: 6,
 };
 
 function nextRoomCode(roomSeq: number): string {

@@ -371,7 +371,7 @@ test("partial configuration keeps defaults and produces finite round targets", (
 	const room = engine.roomsById.get(created.roomId)!;
 	assert.deepEqual(
 		[room.config.maxPlayers, room.config.maxX, room.config.maxY],
-		[8, 10, 10],
+		[8, 6, 6],
 	);
 	for (const { event } of engine.getRoundStartedEvents(room)) {
 		assert.ok(Number.isFinite(event.target.x));

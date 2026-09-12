@@ -157,7 +157,7 @@ test("create room applies defaults for omitted configuration", () => {
 	const config = (sent[0].roomState as { config: Record<string, number> }).config;
 	assert.deepEqual(
 		[config.rounds, config.maxPlayers, config.maxX, config.maxY],
-		[1, 8, 10, 10],
+		[1, 8, 6, 6],
 	);
 });
 
