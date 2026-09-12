@@ -27,7 +27,13 @@ import { deriveWsUrl } from "@infrastructure/ws/url.ts";
 
 // ── Plateau config ─────────────────────────────────────────────────────────
 
-const PLATEAU = { xMax: 10, yMax: 10 }; // Four quadrants: [-10, 10] for both axes
+let plateau = { xMax: 10, yMax: 10 };
+
+function positiveBoardBound(value: unknown): number {
+	return typeof value === "number" && Number.isFinite(value) && value > 0
+		? value
+		: 10;
+}
 
 // ── Board sizing ────────────────────────────────────────────────────────────
 
@@ -152,6 +158,13 @@ const configMaxXy = document.getElementById(
 	"config-max-xy",
 ) as HTMLInputElement | null;
 
+const configMobileBoard = document.getElementById(
+	"config-mobile-board",
+) as HTMLInputElement | null;
+if (configMobileBoard) {
+	configMobileBoard.checked = window.matchMedia("(max-width: 900px)").matches;
+}
+
 const feedbackText = document.getElementById("feedback-text");
 const connectionStatus = document.getElementById("connection-status");
 
@@ -161,6 +174,45 @@ const panel = createStatePanel(document);
 
 let challenge: { x: number; y: number } | null = null;
 let selectedPosition = { x: 0, y: 0 };
+
+let claimResultTimeout: number | null = null;
+
+function showClaimResult(
+	accepted: boolean,
+	pointsEarned: number,
+	selected: { x: number; y: number },
+	target: { x: number; y: number } | null,
+): void {
+	let overlay = document.getElementById("claim-result-modal");
+	if (!overlay) {
+		overlay = document.createElement("div");
+		overlay.id = "claim-result-modal";
+		overlay.className = "claim-result-overlay";
+		overlay.setAttribute("aria-live", "polite");
+		document.body.appendChild(overlay);
+	}
+	if (claimResultTimeout !== null) window.clearTimeout(claimResultTimeout);
+	const title = accepted ? "✅ Correcto" : "❌ Error";
+	const detail = accepted
+		? `+${pointsEarned} puntos`
+		: `Elegiste (${selected.x}, ${selected.y})<br>Buscábamos ${target ? `(${target.x}, ${target.y})` : "otro vértice"}`;
+	overlay.innerHTML = `<div class="claim-result-card ${accepted ? "is-correct" : "is-error"}">
+		<h2 class="claim-result-title">${title}</h2>
+		<p class="claim-result-detail">${detail}</p>
+	</div>`;
+	overlay.classList.add("visible");
+	claimResultTimeout = window.setTimeout(() => {
+		overlay?.classList.remove("visible");
+	}, 2000);
+}
+
+function hideClaimResult(): void {
+	if (claimResultTimeout !== null) {
+		window.clearTimeout(claimResultTimeout);
+		claimResultTimeout = null;
+	}
+	document.getElementById("claim-result-modal")?.classList.remove("visible");
+}
 
 const ws = new WSClient();
 
@@ -210,6 +262,11 @@ function syncStartGameControl(): void {
 
 function syncLobbyUi(roomState: RoomState): void {
 	if (!roomState) return;
+	plateau = {
+		xMax: positiveBoardBound(roomState.config?.maxX),
+		yMax: positiveBoardBound(roomState.config?.maxY),
+	};
+	setRover({ x: 0, y: 0, orientation: "N" });
 	onlineState.roomId = roomState.roomId;
 	onlineState.roomCode = roomState.roomCode;
 	onlineState.hostId = roomState.hostId;
@@ -255,6 +312,8 @@ function setConnectionStatus(message: string, isError = false): void {
 }
 
 function resetOnlineRoom(): void {
+	plateau = { xMax: 10, yMax: 10 };
+	setRover({ x: 0, y: 0, orientation: "N" });
 	snapshotRoomId = null;
 	connectedPlayerIds.clear();
 	urgentSecondsPlayed.clear();
@@ -344,6 +403,7 @@ function initOnlineMode(): void {
 		sounds.play("countdown");
 		closeFinalRankingModal();
 		onlineState.status = "COUNTDOWN";
+		hideClaimResult();
 		onlineState.countdownStartsAtMs = event.startsAtMs;
 		onlineState.deadlineMs = null;
 		panel.setCountdown(event.startsAtMs);
@@ -361,6 +421,7 @@ function initOnlineMode(): void {
 		sounds.play("roundStart");
 		closeFinalRankingModal();
 		onlineState.status = "ROUND_ACTIVE";
+		hideClaimResult();
 		onlineState.countdownStartsAtMs = null;
 		onlineState.currentRound = event.roundId;
 		onlineState.deadlineMs = event.deadlineMs;
@@ -384,7 +445,9 @@ function initOnlineMode(): void {
 	});
 
 	handleClaimAck(ws, (event) => {
-		sounds.play(event.status === "ACCEPTED" ? "correct"
+		const accepted = event.status === "ACCEPTED";
+		showClaimResult(accepted, event.pointsEarned, selectedPosition, challenge);
+		sounds.play(accepted ? "correct"
 			: event.reason === "TOO_LATE" ? "timeout" : "wrong");
 		if (event.status === "ACCEPTED") {
 			feedbackText!.textContent = `✅ Correcto! +${event.pointsEarned} puntos`;
@@ -394,8 +457,10 @@ function initOnlineMode(): void {
 				feedbackText!.textContent = `❌ Tiempo agotado! (+0)`;
 			} else if (event.reason === "WRONG_TARGET") {
 				feedbackText!.textContent = `❌ Incorrecto (+0)`;
+			} else if (event.reason === "ROUND_NOT_ACTIVE") {
+				feedbackText!.textContent = "⏳ La ronda todavía no está activa. Esperá al próximo objetivo.";
 			} else {
-				feedbackText!.textContent = `❌ Claim rechazado (${event.reason})`;
+				feedbackText!.textContent = "❌ No se pudo registrar la elección.";
 			}
 			feedbackText!.style.color = "#f87171";
 		}
@@ -471,7 +536,9 @@ function initOnlineMode(): void {
 		const maxPlayers = parseInt(configMaxPlayers?.value || "8");
 		const rounds = parseInt(configRounds?.value || "3");
 		const seconds = parseInt(configSeconds?.value || "20");
-		const maxXy = parseInt(configMaxXy?.value || "10");
+		const maxXy = configMobileBoard?.checked
+			? 6
+			: parseInt(configMaxXy?.value || "10");
 		const config = {
 			maxPlayers,
 			rounds,
@@ -543,12 +610,10 @@ function initOnlineMode(): void {
 	ws.connect(wsUrl);
 }
 
-// Callback para actualizar "Tu elección" cuando se selecciona una celda
+// Keep the selected coordinate ready for claim submission when a cell is selected
 scene.setCellSelectedCallback(({ x, y }) => {
 	sounds.play("tap");
 	selectedPosition = { x, y };
-	const coordEl = document.getElementById("selected-coord");
-	if (coordEl) coordEl.textContent = `(${x}, ${y})`;
 });
 
 // Update ranking panel in the DOM
@@ -715,7 +780,7 @@ function closeFinalRankingModal(): void {
 		onlineState.playerId !== onlineState.hostId &&
 		feedbackText
 	) {
-		feedbackText.textContent = "Esperando que el host inicie otra partida.";
+		feedbackText.textContent = "Esperando a que inicie la partida.";
 		feedbackText.style.color = "";
 	}
 }
@@ -728,7 +793,7 @@ function escapeHtml(text: string): string {
 }
 
 function setRover(state: RoverState): void {
-	scene.setScenario(PLATEAU, state);
+	scene.setScenario(plateau, state);
 }
 
 // ── Resize handler ───────────────────────────────────────────────────────────

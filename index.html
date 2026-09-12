@@ -150,10 +150,64 @@
         .theme-toggle__icon, .theme-toggle__thumb { transition: none; }
       }
       .hidden { display: none; }
-      .config-section { margin: 8px 0; }
-      .config-section summary { cursor: pointer; color: #94a3b8; font-size: 0.9em; }
-      .config-section label { display: block; font-size: 0.85em; color: #94a3b8; margin: 4px 0; }
-      .config-section input { width: 60px; margin-left: 8px; }
+      .config-section { margin: 16px 0; }
+      .config-section summary {
+        box-sizing: border-box;
+        min-height: 48px;
+        padding: 14px 16px;
+        border: 2px solid var(--color-focus);
+        border-radius: 12px;
+        background: var(--color-surface-raised);
+        color: var(--color-text);
+        font-size: 16px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .config-section summary::marker { color: var(--color-focus); }
+      .config-section summary:hover, .config-section summary:active,
+      .config-section[open] summary { background: var(--color-canvas); }
+      .config-section summary:focus-visible, .config-section input:focus-visible {
+        outline: 3px solid var(--color-focus);
+        outline-offset: 3px;
+      }
+      .config-fields {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+        gap: 16px;
+        padding: 16px 0;
+      }
+      .config-section label {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 0;
+        color: var(--color-text);
+        font-size: 16px;
+        line-height: 1.5;
+      }
+      .config-section input[type="number"] {
+        box-sizing: border-box;
+        width: 100%;
+        min-width: 0;
+        min-height: 48px;
+        margin: 0;
+        padding: 12px;
+        font-size: 16px;
+      }
+      .config-section label[for="config-mobile-board"] {
+        grid-column: 1 / -1;
+        flex-direction: row;
+        align-items: center;
+        min-height: 48px;
+        cursor: pointer;
+      }
+      .config-section input[type="checkbox"] {
+        flex: 0 0 24px;
+        width: 24px;
+        height: 24px;
+        margin: 0;
+        accent-color: var(--color-focus);
+      }
       
       /* Header del juego - estilo marcador NBA */
       .game-header {
@@ -187,6 +241,17 @@
         line-height: 1;
       }
       
+      #selection-display.is-correct .coord-label,
+      #selection-display.is-correct .coord-value {
+        color: #4ade80;
+        text-shadow: 0 0 20px rgba(74, 222, 128, 0.45);
+      }
+      #selection-display.is-error .coord-label,
+      #selection-display.is-error .coord-value {
+        color: #f87171;
+        text-shadow: 0 0 20px rgba(248, 113, 113, 0.45);
+      }
+
       /* Objetivo - centro del header */
       .target-display {
         display: flex;
@@ -389,6 +454,48 @@
         color: #64748b;
         padding: 20px;
         font-style: italic;
+      }
+
+      .claim-result-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 1100;
+        display: none;
+        place-items: center;
+        pointer-events: none;
+      }
+      .claim-result-overlay.visible { display: grid; }
+      .claim-result-card {
+        min-width: min(82vw, 320px);
+        padding: 28px 32px;
+        border: 3px solid var(--color-focus);
+        border-radius: 24px;
+        background: var(--color-surface);
+        box-shadow: 0 16px 50px rgba(15, 23, 42, 0.45);
+        text-align: center;
+        animation: claim-result-pop 420ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+      }
+      .claim-result-card.is-correct { border-color: #4ade80; }
+      .claim-result-card.is-error { border-color: #f87171; }
+      .claim-result-title {
+        margin: 0;
+        font-size: clamp(2rem, 8vw, 3rem);
+        font-weight: 900;
+      }
+      .claim-result-card.is-correct .claim-result-title { color: #4ade80; }
+      .claim-result-card.is-error .claim-result-title { color: #f87171; }
+      .claim-result-detail {
+        margin: 8px 0 0;
+        color: var(--color-text-muted);
+        font-size: 1rem;
+      }
+      @keyframes claim-result-pop {
+        0% { transform: scale(0.7) translateY(16px); opacity: 0; }
+        70% { transform: scale(1.05) translateY(0); opacity: 1; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .claim-result-card { animation: none; }
       }
 
       /* Modal de ranking final */
@@ -687,6 +794,44 @@
         transform: translateY(-1px);
         box-shadow: 0 4px 15px rgba(0,0,0,0.3);
       }
+      #btn-start-game {
+        display: block;
+        width: 100%;
+        min-height: 56px;
+        margin-top: 14px;
+        padding: 14px 18px;
+        border: 2px solid #facc15;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #facc15 0%, #f97316 100%);
+        color: #431407;
+        box-shadow: 0 6px 18px rgba(249, 115, 22, 0.35);
+        cursor: pointer;
+        font-size: 1.05rem;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+      }
+      #btn-start-game:hover:not(:disabled) {
+        transform: translateY(-2px);
+        filter: brightness(1.08);
+        box-shadow: 0 9px 24px rgba(249, 115, 22, 0.45);
+      }
+      #btn-start-game:active:not(:disabled) {
+        transform: translateY(0);
+        box-shadow: 0 3px 10px rgba(249, 115, 22, 0.3);
+      }
+      #btn-start-game:focus-visible {
+        outline: 3px solid var(--color-focus);
+        outline-offset: 3px;
+      }
+      #btn-start-game:disabled {
+        border-color: var(--color-border-subtle);
+        background: var(--color-surface-raised);
+        color: var(--color-text-muted);
+        box-shadow: none;
+        cursor: not-allowed;
+        filter: saturate(0.35);
+      }
       .leave-btn {
         width: 100%;
         padding: 10px;
@@ -795,6 +940,32 @@
         line-height: 1.4;
       }
 
+      .tap-hint {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--color-text-muted);
+        font-size: 0.7em;
+        line-height: 1.2;
+        text-align: right;
+      }
+      .tap-hint span { color: var(--color-text); font-weight: 700; }
+      .tap-hint small { font-size: 0.9em; }
+      .tap-hint .tap-demo {
+        flex: 0 0 42px;
+        width: 42px;
+        height: 42px;
+        transform: scale(0.66);
+        transform-origin: center;
+        margin: -11px;
+      }
+      .tap-hint-copy {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 2px;
+      }
+
       /* Decorative tap demonstration; selection remains on the real board. */
       .tap-instruction {
         display: flex;
@@ -865,7 +1036,7 @@
       .modal-overlay {
         background: var(--color-overlay);
       }
-      .config-section summary, .config-section label, .coord-label, .target-label,
+      .coord-label, .target-label,
       .time-label, .score-item label, .connection-status, .online-menu-subtitle,
       .form-group label, .lobby-code-label, .tips-text {
         color: var(--color-text-muted);
@@ -882,10 +1053,35 @@
       }
       @media (max-width: 900px) {
         .app { grid-template-columns: 1fr; }
-        .left { max-height: none; border-right: 0; border-bottom: 1px solid #1e293b; }
+        .left { order: 2; max-height: none; overflow: visible; border-right: 0; border-top: 1px solid var(--color-border-subtle); }
+        .right {
+          order: 1;
+          box-sizing: border-box;
+          height: 100vh;
+          height: 100dvh;
+          min-height: 0;
+          grid-template-rows: auto minmax(0, 1fr) auto;
+          padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+          gap: 8px;
+        }
+        .game-header { padding: 8px; gap: 4px; }
+        .game-board-space {
+          container-type: size;
+          min-width: 0;
+          min-height: 0;
+          display: grid;
+          place-items: center;
+        }
+        .tap-hint { font-size: 0.62em; }
+        .coord-label, .target-label, .time-label { font-size: 0.65em; }
         .theme-toggle { align-self: flex-start; }
-        #game-container { max-height: 50dvh; }
-        .coord-value { font-size: 1.8em; }
+        #game-container {
+          width: min(100cqw, 100cqh);
+          height: auto;
+          aspect-ratio: 1 / 1;
+          max-height: none;
+        }
+        .coord-value, .target-value { font-size: clamp(1rem, 5vw, 1.8rem); }
         .time-value { font-size: 1.5em; }
       }
     </style>
@@ -939,11 +1135,14 @@
               <input id="player-name-create" placeholder="Ingresa tu nombre" />
             </div>
             <details class="config-section">
-              <summary>Configuración de sala</summary>
-              <label>Jugadores máx: <input id="config-max-players" type="number" value="8" min="2" max="20" /></label>
-              <label>Rondas: <input id="config-rounds" type="number" value="3" min="1" max="10" /></label>
-              <label>Segundos por ronda: <input id="config-seconds" type="number" value="20" min="5" max="120" /></label>
-              <label>Coord. máx (eje): <input id="config-max-xy" type="number" value="10" min="1" max="20" /></label>
+              <summary>⚙ Configurar sala</summary>
+              <div class="config-fields">
+              <label for="config-max-players">Máximo de jugadores: <input id="config-max-players" type="number" value="8" min="2" max="20" /></label>
+              <label for="config-rounds">Cantidad de rondas: <input id="config-rounds" type="number" value="3" min="1" max="10" /></label>
+              <label for="config-seconds">Segundos por ronda: <input id="config-seconds" type="number" value="20" min="5" max="120" /></label>
+              <label for="config-mobile-board"><input id="config-mobile-board" type="checkbox" role="switch" /> Tablero móvil: rango reducido ±6 (de -6 a 6) para mayor precisión táctil.</label>
+              <label for="config-max-xy">Coordenada máxima por eje: <input id="config-max-xy" type="number" value="10" min="1" max="20" /></label>
+              </div>
             </details>
             <button id="btn-confirm-create" class="action-btn create">Crear Sala</button>
           </div>
@@ -970,12 +1169,9 @@
               <span class="lobby-code" id="lobby-code-display">—</span>
             </div>
             
-            <div class="tap-instruction">
-              <span class="tap-demo" aria-hidden="true"></span>
-              <p>Tocá o hacé clic en un punto de la grilla para seleccionar la coordenada. <strong>No arrastres.</strong></p>
-            </div>
+
             
-            <button id="btn-start-game" disabled>Iniciar partida (host)</button>
+            <button id="btn-start-game" disabled>🚀 Iniciar partida</button>
             <button id="btn-leave-room" class="leave-btn">Salir de la sala</button>
           </div>
 
@@ -1003,23 +1199,27 @@
       <section class="right">
 <!-- Header con coordenada, objetivo y tiempo -->
       <div class="game-header">
-        <div class="coord-display">
-          <span class="coord-label">Tu elección</span>
-          <span class="coord-value" id="selected-coord">(0, 0)</span>
-        </div>
         <div class="target-display">
-          <span class="target-label">Objetivo</span>
+          <span class="target-label">🎯 Buscá este punto</span>
           <span class="target-value" id="target-coord">(0, 0)</span>
         </div>
         <div class="time-display">
           <span class="time-label">Tiempo</span>
           <span class="time-value" data-role="countdown">—</span>
         </div>
+        <div class="tap-hint" role="note">
+          <span class="tap-demo" aria-hidden="true"></span>
+          <span class="tap-hint-copy">
+            <span>Tocá en el vértice de la grilla</span>
+            <small>No arrastres</small>
+          </span>
+        </div>
       </div>
         
         <!-- Canvas del juego -->
-        <div id="game-container"></div>
-        
+        <div class="game-board-space">
+          <div id="game-container"></div>
+        </div>
       </section>
     </div>
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>

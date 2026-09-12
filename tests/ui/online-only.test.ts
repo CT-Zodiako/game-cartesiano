@@ -13,22 +13,126 @@ test("the browser entry point offers only online room matchmaking", () => {
 	assert.doesNotMatch(indexHtml, /single-player|\?online=1/iu);
 });
 
-test("the lobby replaces the competitive notice with tap selection guidance", () => {
+test("tap selection guidance stays in the game header without taking board space", () => {
 	assert.doesNotMatch(indexHtml, /online-rules-notice|Modo Competitivo|notice-title|notice-list/);
-	const lobbyMarkup = indexHtml.slice(indexHtml.indexOf('id="online-lobby"'));
-	assert.match(lobbyMarkup, /class="tap-instruction"/);
-	assert.match(lobbyMarkup, /Tocá o hacé clic en un punto de la grilla para seleccionar la coordenada\./);
-	assert.match(lobbyMarkup, /<strong>No arrastres\.<\/strong>/);
+	assert.match(indexHtml, /<div class="tap-hint" role="note">\s*<span class="tap-demo" aria-hidden="true"><\/span>\s*<span class="tap-hint-copy">\s*<span>Tocá en el vértice de la grilla<\/span>\s*<small>No arrastres<\/small>/);
+	assert.equal(indexHtml.match(/class="tap-hint"/g)?.length, 1);
+	assert.doesNotMatch(indexHtml, /class="tap-instruction"/);
+	assert.match(indexHtml, /\.tap-hint\s*\{[^}]*font-size: 0\.7em;[^}]*text-align: right;/);
 });
 
-test("the tap demonstration is decorative, non-blocking, and motion accessible", () => {
-	assert.match(indexHtml, /<span class="tap-demo" aria-hidden="true"><\/span>/);
-	assert.match(indexHtml, /\.tap-demo\s*\{[^}]*pointer-events: none;/);
+test("mobile puts a viewport-sized square game stage before scrollable controls", () => {
+	const mobile = indexHtml.slice(indexHtml.indexOf('@media (max-width: 900px)'), indexHtml.indexOf('</style>'));
+	assert.match(mobile, /\.left\s*\{[^}]*order: 2;[^}]*max-height: none;[^}]*overflow: visible;/);
+	assert.match(mobile, /\.right\s*\{[^}]*order: 1;[^}]*box-sizing: border-box;[^}]*height: 100vh;[^}]*height: 100dvh;[^}]*grid-template-rows: auto minmax\(0, 1fr\) auto;/);
+	for (const edge of ['top', 'right', 'bottom', 'left']) {
+		assert.ok(mobile.includes(`env(safe-area-inset-${edge})`));
+	}
+	assert.match(mobile, /\.game-board-space\s*\{[^}]*container-type: size;[^}]*min-height: 0;/);
+	assert.match(mobile, /#game-container\s*\{[^}]*width: min\(100cqw, 100cqh\);[^}]*height: auto;[^}]*aspect-ratio: 1 \/ 1;[^}]*max-height: none;/);
+	assert.match(mobile, /\.game-header\s*\{[^}]*padding: 8px;/);
+	assert.match(mobile, /\.tap-hint\s*\{[^}]*font-size: 0\.62em;/);
+	assert.doesNotMatch(indexHtml, /max-height:\s*50dvh/);
+	assert.match(indexHtml, /grid-template-columns: 320px 1fr;/);
+});
+
+test("tap guidance is compact and aligned in the header", () => {
+	assert.match(indexHtml, /\.tap-hint span \{ color: var\(--color-text\); font-weight: 700; \}/);
+	assert.match(indexHtml, /\.tap-hint small \{ font-size: 0\.9em; \}/);
+	assert.match(indexHtml, /Tocá en el vértice de la grilla/);
+	assert.doesNotMatch(indexHtml, /👆 Tocá un punto/);
+	assert.match(indexHtml, /\.tap-hint \.tap-demo\s*\{[^}]*transform: scale\(0\.66\);/);
 	assert.match(indexHtml, /\.tap-demo::before\s*\{[^}]*animation: tap-point 2s ease-in-out infinite;/);
 	assert.match(indexHtml, /\.tap-demo::after\s*\{[^}]*animation: tap-pointer 2s ease-in-out infinite;/);
-	assert.match(indexHtml, /@keyframes tap-pointer\s*\{/);
-	assert.match(indexHtml, /@keyframes tap-point\s*\{/);
 	assert.match(indexHtml, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.tap-demo::before, \.tap-demo::after\s*\{ animation: none; \}/);
+});
+
+test("the host can select a reduced mobile coordinate range in room configuration", () => {
+	const configuration = indexHtml.slice(
+		indexHtml.indexOf('<details class="config-section">'),
+		indexHtml.indexOf('</details>'),
+	);
+	assert.match(configuration, /<label for="config-mobile-board">/);
+	assert.match(configuration, /<input id="config-mobile-board" type="checkbox" role="switch" \/>/);
+	assert.match(configuration, /Tablero móvil: rango reducido ±6 \(de -6 a 6\) para mayor precisión táctil\./);
+	assert.match(configuration, /id="config-max-xy" type="number" value="10"/);
+});
+
+test("room configuration uses a prominent native disclosure with keyboard and touch feedback", () => {
+	assert.match(indexHtml, /<details class="config-section">\s*<summary>⚙ Configurar sala<\/summary>/);
+	assert.match(indexHtml, /\.config-section summary\s*\{[^}]*min-height: 48px;[^}]*padding: 14px 16px;[^}]*border: 2px solid var\(--color-focus\);[^}]*font-size: 16px;[^}]*font-weight: 700;/);
+	assert.match(indexHtml, /\.config-section summary::marker\s*\{/);
+	assert.doesNotMatch(indexHtml, /summary[^{}]*\{[^}]*list-style:\s*none|summary::-webkit-details-marker/);
+	assert.match(indexHtml, /\.config-section summary:active/);
+	assert.match(indexHtml, /\.config-section\[open\] summary/);
+	assert.match(indexHtml, /\.config-section summary:focus-visible, \.config-section input:focus-visible\s*\{[^}]*outline: 3px solid var\(--color-focus\);/);
+});
+
+test("configuration fields have labeled touch targets and a responsive non-overflowing grid", () => {
+	assert.match(indexHtml, /<div class="config-fields">/);
+	assert.match(indexHtml, /\.config-fields\s*\{[^}]*display: grid;[^}]*grid-template-columns: repeat\(auto-fit, minmax\(min\(100%, 200px\), 1fr\)\);[^}]*gap: 16px;/);
+	assert.match(indexHtml, /\.config-section input\[type="number"\]\s*\{[^}]*box-sizing: border-box;[^}]*width: 100%;[^}]*min-width: 0;[^}]*min-height: 48px;[^}]*font-size: 16px;/);
+	for (const id of ["config-max-players", "config-rounds", "config-seconds", "config-max-xy"]) {
+		assert.ok(indexHtml.includes(`<label for="${id}">`));
+	}
+	assert.match(indexHtml, /\.config-section label\[for="config-mobile-board"\]\s*\{[^}]*grid-column: 1 \/ -1;[^}]*min-height: 48px;/);
+	assert.match(indexHtml, /\.config-section input\[type="checkbox"\]\s*\{[^}]*width: 24px;[^}]*height: 24px;/);
+});
+
+test("mobile defaults follow screen size once without overriding the host choice", () => {
+	assert.match(mainSource, /const configMobileBoard = document\.getElementById\(\s*"config-mobile-board",?\s*\) as HTMLInputElement \| null;/);
+	assert.match(mainSource, /configMobileBoard\.checked = window\.matchMedia\("\(max-width: 900px\)"\)\.matches;/);
+	assert.equal(mainSource.match(/configMobileBoard\.checked\s*=/g)?.length, 1);
+});
+
+test("room creation applies mobile bounds or preserves the configured symmetric range", () => {
+	const createSource = mainSource.slice(
+		mainSource.indexOf('confirmCreateBtn?.addEventListener("click"'),
+		mainSource.indexOf('confirmJoinBtn?.addEventListener("click"'),
+	);
+	assert.match(createSource, /const maxXy = configMobileBoard\?\.checked\s*\? 6\s*: parseInt\(configMaxXy\?\.value \|\| "10"\);/);
+	assert.match(createSource, /maxX: maxXy,\s*maxY: maxXy,/);
+	assert.match(createSource, /ws\.createRoom\(playerName, config\);/);
+});
+
+test("room snapshots render configured bounds before rounds and reset to the default board", () => {
+	assert.match(mainSource, /let plateau = \{ xMax: 10, yMax: 10 \};/);
+	const syncSource = mainSource.slice(
+		mainSource.indexOf("function syncLobbyUi"),
+		mainSource.indexOf("function resetOnlineRoom"),
+	);
+	assert.match(syncSource, /plateau = \{\s*xMax: positiveBoardBound\(roomState\.config\?\.maxX\),\s*yMax: positiveBoardBound\(roomState\.config\?\.maxY\),\s*\};\s*setRover\(/);
+	assert.match(mainSource, /handleRoomSnapshot\(ws,[\s\S]*?syncLobbyUi\(roomState\);/);
+	assert.match(mainSource, /typeof value === "number" && Number\.isFinite\(value\) && value > 0\s*\? value\s*: 10;/);
+	assert.match(mainSource, /function resetOnlineRoom\(\): void \{\s*plateau = \{ xMax: 10, yMax: 10 \};\s*setRover\(/);
+	assert.match(mainSource, /scene\.setScenario\(plateau, state\);/);
+	assert.doesNotMatch(mainSource, /scene\.setScenario\(PLATEAU, state\)/);
+});
+
+test("the lobby start button is prominent, touch-friendly, and clearly disabled when unavailable", () => {
+	assert.match(indexHtml, /<button id="btn-start-game" disabled>🚀 Iniciar partida<\/button>/);
+	assert.match(indexHtml, /#btn-start-game\s*\{[^}]*min-height: 56px;[^}]*background: linear-gradient\([^}]*font-size: 1\.05rem;[^}]*font-weight: 800;/);
+	assert.match(indexHtml, /#btn-start-game:hover:not\(:disabled\)/);
+	assert.match(indexHtml, /#btn-start-game:focus-visible\s*\{[^}]*outline: 3px solid var\(--color-focus\);/);
+	assert.match(indexHtml, /#btn-start-game:disabled\s*\{[^}]*cursor: not-allowed;/);
+});
+
+test("claim results appear as an animated friendly status card", () => {
+	assert.doesNotMatch(indexHtml, /Tu elección|id="selection-display"/);
+	assert.match(indexHtml, /\.claim-result-overlay\s*\{[^}]*position: fixed;[^}]*pointer-events: none;/);
+	assert.match(indexHtml, /\.claim-result-card\s*\{[^}]*animation: claim-result-pop 420ms/);
+	assert.match(mainSource, /window\.setTimeout\(\(\) =>[\s\S]*?\}, 2000\);/);
+	assert.match(mainSource, /function hideClaimResult\(\): void \{/);
+	assert.match(mainSource, /onlineState\.status = "COUNTDOWN";\s*hideClaimResult\(\);/);
+	assert.match(mainSource, /onlineState\.status = "ROUND_ACTIVE";\s*hideClaimResult\(\);/);
+	assert.match(indexHtml, /\.claim-result-card\.is-correct[^}]*border-color: #4ade80/);
+	assert.match(indexHtml, /\.claim-result-card\.is-error[^}]*border-color: #f87171/);
+	assert.match(mainSource, /showClaimResult\(accepted, event\.pointsEarned, selectedPosition, challenge\);/);
+	assert.match(mainSource, /event\.reason === "ROUND_NOT_ACTIVE"/);
+	assert.match(mainSource, /La ronda todavía no está activa\. Esperá al próximo objetivo/);
+	assert.match(mainSource, /Elegiste \(\$\{selected\.x\}, \$\{selected\.y\}\)<br>Buscábamos/);
+	assert.match(mainSource, /const title = accepted \? "✅ Correcto" : "❌ Error";/);
+	assert.match(mainSource, /window\.setTimeout\(\(\) =>/);
 });
 
 test("the browser boot always initializes multiplayer without an offline branch", () => {
@@ -68,7 +172,7 @@ test("final ranking closes before the normal host start control routes FINAL thr
 	assert.doesNotMatch(mainSource, /btn-start-rematch|rematch-action|Jugar otra partida/);
 	assert.match(mainSource, /onlineState\.status === "FINAL"/);
 	assert.match(mainSource, /ws\.startRematch\(onlineState\.roomId\)/);
-	assert.match(mainSource, /Esperando que el host inicie otra partida/);
+	assert.match(mainSource, /Esperando a que inicie la partida/);
 	assert.match(mainSource, /closeFinalRankingModal\(\);/);
 });
 
