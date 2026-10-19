@@ -59,7 +59,7 @@ Esto ejecuta los tests de UI y servidor (`tests/ui/*.test.ts` y `tests/server/*.
 2. El host crea una sala y comparte el código
 3. Otros jugadores se unen con el código
 4. El host inicia la partida; todos reciben una cuenta regresiva sincronizada de 3 → 2 → 1 antes de la ronda 1.
-5. Todos ven el mismo objetivo y compiten por quién responde más rápido.
+5. Cada jugador recibe su propio punto aleatorio en cada ronda; cuanto más rápido responde bien, más puntos gana.
 6. Al terminar, el ranking final se cierra primero. Después, el host vuelve a ver el control normal **Iniciar partida**; este conserva sala, código, configuración y jugadores conectados, y usa una nueva cuenta regresiva antes de reiniciar puntajes y volver a la ronda 1. Los demás jugadores esperan al host.
 7. Si el host sale durante la cuenta regresiva, una partida activa o tras el ranking final, la sala se cancela para todos. Si un jugador no host sale durante la cuenta regresiva, esta se cancela y la sala vuelve al lobby o conserva su ranking final.
 
