@@ -737,6 +737,27 @@
         font-size: 1.1rem;
         line-height: 1.5;
       }
+      .tutorial-tap {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        margin: 4px 0 0;
+        padding: 12px;
+        border: 1px solid var(--color-border);
+        border-radius: 14px;
+        background: var(--color-surface-input);
+      }
+      .tutorial-tap[hidden] {
+        display: none;
+      }
+      .tutorial-tap-copy {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        color: var(--color-text-muted);
+      }
+      .tutorial-tap-copy strong { color: var(--color-text); }
       .tutorial-actions {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -1346,6 +1367,13 @@
         <p id="tutorial-progress" class="tutorial-progress">1 de 5</p>
         <h2 id="tutorial-title" class="modal-title">El origen</h2>
         <p id="tutorial-body" class="tutorial-body"></p>
+        <div id="tutorial-tap-demo" class="tutorial-tap" role="note" hidden>
+          <span class="tap-demo" aria-hidden="true"></span>
+          <span class="tutorial-tap-copy">
+            <strong>Toca en el vértice de la cuadrícula</strong>
+            <small>No arrastres</small>
+          </span>
+        </div>
         <div class="tutorial-actions">
           <button id="btn-tutorial-prev" class="modal-close-btn" type="button">Anterior</button>
           <button id="btn-tutorial-next" type="button">Siguiente</button>

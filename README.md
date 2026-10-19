@@ -67,6 +67,8 @@ Esto ejecuta los tests de UI y servidor (`tests/ui/*.test.ts` y `tests/server/*.
 
 - **Guía "¿Cómo se juega?"**: explica origen, eje X, eje Y, el orden `(x, y)` y los cuadrantes. Se abre sola la primera vez y se puede reabrir desde el botón del panel.
 - **Colores por eje**: los números del eje X son azules y los del eje Y son verdes, igual que en el material de clase.
+- **Cuadrantes nombrados**: el tablero muestra I, II, III y IV dentro de cada cuadrante, entre vértices, sin tapar puntos seleccionables.
+- **Animación de toque en la guía**: el paso "Cómo responder" muestra cómo tocar el vértice sin arrastrar.
 - **Respuesta revelada**: el punto objetivo nunca se dibuja durante la ronda (sería dar la respuesta). Después de responder, el tablero marca el vértice correcto.
 - **Pistas al fallar**: el juego explica el error más probable: orden invertido, signo de X o de Y, cuadrante equivocado o error de conteo, con el recorrido "primero X, después Y".
 - **Correcto pero segundo**: si respondés bien pero otro jugador llegó antes, se muestra como correcto (+0 puntos), no como error.

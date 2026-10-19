@@ -42,7 +42,13 @@ class FakeGraphics {
 }
 
 class FakeText {
-	constructor(readonly style: { color?: string }, readonly text = "", readonly x = 0, readonly y = 0) {}
+	alpha = 1;
+	constructor(readonly style: { color?: string; fontSize?: string }, readonly text = "", readonly x = 0, readonly y = 0) {}
+
+	setAlpha(alpha: number): this {
+		this.alpha = alpha;
+		return this;
+	}
 
 	destroy(): void {}
 }
@@ -206,6 +212,40 @@ test("X and Y axis numbers use distinct readable colors in both themes", () => {
 		assert.ok(contrastRatio(hexToNumber(palette.xLabel), palette.background) >= 4.5);
 		assert.ok(contrastRatio(hexToNumber(palette.yLabel), palette.background) >= 4.5);
 	}
+});
+
+test("the board names the four quadrants inside their own quadrant", () => {
+	const scene = new RoverScene();
+	scene.create();
+
+	for (const theme of ["dark", "light"] as const) {
+		labels.length = 0;
+		scene.setTheme(theme);
+		const quadrantLabels = labels.filter((label) => ["I", "II", "III", "IV"].includes(label.text));
+		assert.deepEqual(quadrantLabels.map((label) => label.text).sort(), ["I", "II", "III", "IV"]);
+		const position = (name: string) => quadrantLabels.find((label) => label.text === name)!;
+		assert.ok(position("I").x > 200 && position("I").y < 200);
+		assert.ok(position("II").x < 200 && position("II").y < 200);
+		assert.ok(position("III").x < 200 && position("III").y > 200);
+		assert.ok(position("IV").x > 200 && position("IV").y > 200);
+		for (const label of quadrantLabels) {
+			assert.equal(label.style.color, BOARD_PALETTES[theme].quadrantLabel);
+			assert.ok(label.alpha < 1);
+		}
+	}
+});
+
+test("quadrant names sit between vertices so they never cover a selectable point", () => {
+	const scene = new RoverScene();
+	scene.create();
+	labels.length = 0;
+	scene.setTheme("dark");
+	// Default 5x5 board at 400px: 34px steps centered on (200, 200).
+	const label = labels.find((item) => item.text === "I")!;
+	const offsetX = (label.x - 200) / 34;
+	const offsetY = (200 - label.y) / 34;
+	assert.equal(offsetX % 1, 0.5);
+	assert.equal(offsetY % 1, 0.5);
 });
 
 function diamondCenter(points: { x: number; y: number }[]): { x: number; y: number } {

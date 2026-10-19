@@ -21,6 +21,7 @@ class FakeStorage {
 class FakeElement {
 	textContent = "";
 	disabled = false;
+	hidden = false;
 	readonly classes = new Set<string>();
 	private readonly listeners: Array<() => void> = [];
 	readonly classList = {
@@ -50,6 +51,7 @@ function fakeTutorial() {
 		next: new FakeElement(),
 		close: new FakeElement(),
 		openButton: new FakeElement(),
+		tapDemo: new FakeElement(),
 	};
 }
 
@@ -107,6 +109,19 @@ test("navigates the steps, finishes on the last one, and remembers it was seen",
 	assert.equal(storage.getItem(TUTORIAL_STORAGE_KEY), "1");
 });
 
+test("the tap demonstration appears only on the how-to-answer step", () => {
+	const elements = fakeTutorial();
+	setupTutorial(elements, new FakeStorage());
+	assert.equal(elements.tapDemo.hidden, true);
+
+	for (let step = 1; step < TUTORIAL_STEPS.length; step += 1) elements.next.click();
+	assert.equal(elements.title.textContent, "Cómo responder");
+	assert.equal(elements.tapDemo.hidden, false);
+
+	elements.prev.click();
+	assert.equal(elements.tapDemo.hidden, true);
+});
+
 test("closing early also marks the guide as seen", () => {
 	const elements = fakeTutorial();
 	const storage = new FakeStorage();
@@ -137,6 +152,11 @@ test("the page exposes an accessible guide dialog and a button to reopen it", ()
 	const indexHtml = readFileSync(new URL("../../index.html", import.meta.url), "utf8");
 	assert.match(indexHtml, /<button id="btn-tutorial"[^>]*type="button"[^>]*>¿Cómo se juega\?<\/button>/);
 	assert.match(indexHtml, /id="tutorial-modal"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="tutorial-title"/);
+	assert.match(
+		indexHtml,
+		/<div id="tutorial-tap-demo" class="tutorial-tap" role="note" hidden>\s*<span class="tap-demo" aria-hidden="true"><\/span>\s*<span class="tutorial-tap-copy">\s*<strong>Toca en el vértice de la cuadrícula<\/strong>\s*<small>No arrastres<\/small>/,
+	);
+	assert.match(indexHtml, /\.tutorial-tap\[hidden\]\s*\{\s*display: none;/);
 	for (const id of ["tutorial-title", "tutorial-body", "tutorial-progress", "btn-tutorial-prev", "btn-tutorial-next", "btn-tutorial-close"]) {
 		assert.ok(indexHtml.includes(`id="${id}"`), id);
 	}

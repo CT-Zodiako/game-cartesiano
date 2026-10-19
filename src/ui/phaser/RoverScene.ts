@@ -11,6 +11,7 @@ interface BoardPalette {
   axis: number;
   xLabel: string;
   yLabel: string;
+  quadrantLabel: string;
   axisLabel: string;
   path: number;
   marker: number;
@@ -25,6 +26,7 @@ export const BOARD_PALETTES: Record<BoardTheme, BoardPalette> = {
     axis: 0x16e7ff,
     xLabel: '#60a5fa',
     yLabel: '#4ade80',
+    quadrantLabel: '#c4b5fd',
     axisLabel: '#eef7ff',
     path: 0xff00d4,
     marker: 0x16e7ff,
@@ -37,6 +39,7 @@ export const BOARD_PALETTES: Record<BoardTheme, BoardPalette> = {
     axis: 0x087ee8,
     xLabel: '#1d4ed8',
     yLabel: '#166534',
+    quadrantLabel: '#6d28d9',
     axisLabel: '#08133d',
     path: 0xc026d3,
     marker: 0x087ee8,
@@ -218,6 +221,29 @@ export class RoverScene extends Phaser.Scene {
       this.add.text(margin + w + 12, centerY - 10, 'X', { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: palette.axisLabel, fontStyle: 'bold', resolution: 2 }),
       this.add.text(centerX + 10, margin - 28, 'Y', { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: palette.axisLabel, fontStyle: 'bold', resolution: 2 }),
     );
+
+    // Quadrant names sit at a cell center (half a step off the grid) so they never cover a selectable vertex.
+    const quadrantFontSize = Math.round(Math.max(12, Math.min(28, Math.min(stepX, stepY) * 0.7)));
+    const quadrantX = Math.floor(this.plateau.xMax / 2) + 0.5;
+    const quadrantY = Math.floor(this.plateau.yMax / 2) + 0.5;
+    const quadrants: Array<[string, number, number]> = [
+      ['I', quadrantX, quadrantY],
+      ['II', -quadrantX, quadrantY],
+      ['III', -quadrantX, -quadrantY],
+      ['IV', quadrantX, -quadrantY],
+    ];
+    for (const [name, qx, qy] of quadrants) {
+      const txt = this.add.text(centerX + qx * stepX, centerY - qy * stepY, name, {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: `${quadrantFontSize}px`,
+        color: palette.quadrantLabel,
+        fontStyle: 'bold',
+        resolution: 2,
+      });
+      txt.setOrigin?.(0.5, 0.5);
+      txt.setAlpha?.(0.6);
+      this.axisTexts.push(txt);
+    }
 
     // Path line
     this.pathGfx.lineStyle(3, palette.path, 0.95);

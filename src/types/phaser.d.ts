@@ -85,6 +85,7 @@ declare module 'phaser' {
   class Text extends GameObjects.GameObject {
     setText(value: string | string[]): this;
     setOrigin(x: number, y: number): this;
+    setAlpha(value: number): this;
     setStyle(style: Text.TextStyle): this;
     setPosition(x: number, y: number): this;
   }

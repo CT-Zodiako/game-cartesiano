@@ -20,7 +20,7 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
 	},
 	{
 		title: "Los cuadrantes",
-		body: "I (+, +) arriba a la derecha · II (−, +) arriba a la izquierda · III (−, −) abajo a la izquierda · IV (+, −) abajo a la derecha. Si un número es 0, el punto está sobre un eje.",
+		body: "I (+, +) arriba a la derecha · II (−, +) arriba a la izquierda · III (−, −) abajo a la izquierda · IV (+, −) abajo a la derecha. Si un número es 0, el punto está sobre un eje. En el tablero cada cuadrante muestra su nombre.",
 	},
 	{
 		title: "Cómo responder",
@@ -48,6 +48,8 @@ export interface TutorialElements {
 	next: TutorialButton & TutorialText;
 	close: TutorialButton;
 	openButton: TutorialButton;
+	/** Animated tap demonstration shown on the how-to-answer step. */
+	tapDemo?: { hidden: boolean };
 }
 
 export interface TutorialController {
@@ -83,6 +85,7 @@ export function setupTutorial(elements: TutorialElements, storage: TutorialStora
 		elements.progress.textContent = `${step + 1} de ${TUTORIAL_STEPS.length}`;
 		elements.prev.disabled = step === 0;
 		elements.next.textContent = step === lastStep ? "¡A jugar!" : "Siguiente";
+		if (elements.tapDemo) elements.tapDemo.hidden = step !== lastStep;
 	};
 
 	const open = (): void => {

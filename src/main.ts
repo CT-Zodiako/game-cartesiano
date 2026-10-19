@@ -101,11 +101,12 @@ const tutorialElements = {
 	next: document.getElementById("btn-tutorial-next") as HTMLButtonElement | null,
 	close: document.getElementById("btn-tutorial-close") as HTMLButtonElement | null,
 	openButton: document.getElementById("btn-tutorial") as HTMLButtonElement | null,
+	tapDemo: document.getElementById("tutorial-tap-demo"),
 };
-const { overlay, title, body, progress, prev, next, close, openButton } = tutorialElements;
+const { overlay, title, body, progress, prev, next, close, openButton, tapDemo } = tutorialElements;
 if (overlay && title && body && progress && prev && next && close && openButton) {
 	const tutorial = setupTutorial(
-		{ overlay, title, body, progress, prev, next, close, openButton },
+		{ overlay, title, body, progress, prev, next, close, openButton, tapDemo: tapDemo ?? undefined },
 		window.localStorage,
 	);
 	document.addEventListener("keydown", (event) => {
