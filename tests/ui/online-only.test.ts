@@ -23,7 +23,7 @@ test("tap selection guidance stays in the game header without taking board space
 
 test("mobile puts a viewport-sized square game stage before scrollable controls", () => {
 	const mobile = indexHtml.slice(indexHtml.indexOf('@media (max-width: 900px)'), indexHtml.indexOf('</style>'));
-	assert.match(mobile, /\.right\s*\{[^}]*order: 1;[^}]*box-sizing: border-box;[^}]*height: 100vh;[^}]*height: 100dvh;[^}]*grid-template-rows: auto minmax\(0, 1fr\) auto;/);
+	assert.match(mobile, /\.right\s*\{[^}]*order: 1;[^}]*box-sizing: border-box;[^}]*height: 100vh;[^}]*height: 100dvh;[^}]*grid-template-rows: auto auto minmax\(0, 1fr\);/);
 	for (const edge of ['top', 'right', 'bottom', 'left']) {
 		assert.ok(mobile.includes(`env(safe-area-inset-${edge})`));
 	}

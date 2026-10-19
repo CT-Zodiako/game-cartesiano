@@ -93,7 +93,9 @@ test("programmatic opening on a desktop layout never steals keyboard focus", () 
 
 test("the page offers an accessible hamburger and an off-canvas panel on phones", () => {
 	const indexHtml = readFileSync(new URL("../../index.html", import.meta.url), "utf8");
-	assert.match(indexHtml, /<button id="btn-menu" class="menu-toggle" type="button" aria-controls="side-panel" aria-expanded="false" aria-label="Abrir menú">☰<\/button>/);
+	// The phone menu button lives in its own top bar above the time, target, and tap hint.
+	assert.match(indexHtml, /<div class="mobile-topbar">\s*<button id="btn-menu" class="menu-toggle" type="button" aria-controls="side-panel" aria-expanded="false" aria-label="Abrir menú"><span aria-hidden="true">☰<\/span> Menú<\/button>\s*<\/div>\s*<div class="game-header">/);
+	assert.match(indexHtml, /\.mobile-topbar \{ display: none; \}/);
 	assert.match(indexHtml, /<section class="left" id="side-panel">/);
 	assert.match(indexHtml, /<button id="btn-menu-close" class="menu-close" type="button" aria-label="Cerrar menú">✕<\/button>/);
 	assert.match(indexHtml, /<div id="menu-backdrop" class="menu-backdrop" hidden><\/div>/);
@@ -102,9 +104,12 @@ test("the page offers an accessible hamburger and an off-canvas panel on phones"
 	const mobile = indexHtml.slice(indexHtml.indexOf("@media (max-width: 900px)"), indexHtml.indexOf("</style>"));
 	assert.match(mobile, /\.left\s*\{[^}]*position: fixed;[^}]*transform: translateX\(-105%\);[^}]*overflow-y: auto;/);
 	assert.match(mobile, /\.left\.is-open\s*\{\s*transform: none;/);
-	assert.match(mobile, /\.menu-toggle, \.menu-close\s*\{\s*display: inline-grid;/);
+	assert.match(mobile, /\.menu-toggle, \.menu-close\s*\{\s*display: inline-flex;/);
+	assert.match(mobile, /\.mobile-topbar\s*\{[^}]*display: flex;/);
+	// The board sits right under the header instead of floating in the middle of the screen.
+	assert.match(mobile, /\.game-board-space\s*\{[^}]*place-items: start center;/);
 	assert.match(mobile, /\.menu-backdrop\s*\{[^}]*position: fixed;/);
-	// The hamburger, time, and target share the first header row; the tap hint takes a full second row.
-	assert.match(mobile, /\.game-header \{ grid-template-columns: auto auto 1fr; column-gap: 10px; \}/);
+	// Time and target share the first header row; the tap hint takes a full second row.
+	assert.match(mobile, /\.game-header \{ grid-template-columns: auto 1fr; column-gap: 10px; \}/);
 	assert.match(mobile, /\.game-header \.tap-hint \{ grid-column: 1 \/ -1; justify-self: center; \}/);
 });

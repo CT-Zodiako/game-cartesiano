@@ -334,6 +334,7 @@
         cursor: pointer;
       }
       .menu-close { float: right; margin: 0 0 8px 8px; }
+      .mobile-topbar { display: none; }
       .menu-toggle:focus-visible, .menu-close:focus-visible {
         outline: 3px solid var(--color-focus);
         outline-offset: 2px;
@@ -1265,9 +1266,23 @@
           background: var(--color-overlay);
         }
         .menu-toggle, .menu-close {
-          display: inline-grid;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
         }
-        .game-header { grid-template-columns: auto auto 1fr; column-gap: 10px; }
+        .mobile-topbar {
+          display: flex;
+          justify-content: flex-start;
+        }
+        .menu-toggle {
+          width: auto;
+          height: 40px;
+          padding: 0 16px;
+          font-size: 1rem;
+          font-weight: 800;
+        }
+        .game-header { grid-template-columns: auto 1fr; column-gap: 10px; }
         .game-header .target-display { justify-self: center; }
         .game-header .tap-hint { grid-column: 1 / -1; justify-self: center; }
         .right {
@@ -1276,7 +1291,7 @@
           height: 100vh;
           height: 100dvh;
           min-height: 0;
-          grid-template-rows: auto minmax(0, 1fr) auto;
+          grid-template-rows: auto auto minmax(0, 1fr);
           padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
           gap: 8px;
         }
@@ -1286,7 +1301,7 @@
           min-width: 0;
           min-height: 0;
           display: grid;
-          place-items: center;
+          place-items: start center;
         }
         .tap-hint { font-size: 0.62em; }
         .coord-label, .target-label, .time-label { font-size: 0.65em; }
@@ -1419,8 +1434,10 @@
       
       <section class="right">
 <!-- Header con coordenada, objetivo y tiempo -->
+      <div class="mobile-topbar">
+        <button id="btn-menu" class="menu-toggle" type="button" aria-controls="side-panel" aria-expanded="false" aria-label="Abrir menú"><span aria-hidden="true">☰</span> Menú</button>
+      </div>
       <div class="game-header">
-        <button id="btn-menu" class="menu-toggle" type="button" aria-controls="side-panel" aria-expanded="false" aria-label="Abrir menú">☰</button>
         <div class="time-display">
           <span class="time-label">Tiempo</span>
           <span class="time-value" data-role="countdown">—</span>
