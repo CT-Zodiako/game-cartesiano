@@ -65,13 +65,12 @@ Esto ejecuta los tests de UI y servidor (`tests/ui/*.test.ts` y `tests/server/*.
 
 ## Aprendizaje y retroalimentación
 
-- **Guía "¿Cómo se juega?"**: explica origen, eje X, eje Y, el orden `(x, y)` y los cuadrantes. Se abre sola la primera vez y se puede reabrir desde el botón del panel.
+- **Guía "¿Cómo se juega?"**: cinco pasos con un mini tablero animado igual al del juego (origen, primero X, después Y, cuadrantes y una jugada completa) y una sola línea de texto por paso. La primera vez es obligatoria: no se puede saltar y "Siguiente" se habilita a los 10 segundos de cada paso. Después se puede reabrir desde el botón del panel, recorrer sin esperas y cerrar.
 - **Colores por eje**: los números del eje X son azules y los del eje Y son verdes, igual que en el material de clase.
 - **Cambio de ronda visible**: al empezar cada ronda la coordenada se agranda y brilla, el borde del tablero destella, aparece "Ronda N de M", el marcador vuelve al origen y en celulares el menú lateral se cierra para dejar el tablero a pantalla completa.
 - **Menú ☰ en celulares**: un botón "Menú" arriba, sobre el tiempo y la coordenada; el tablero queda pegado al encabezado y los controles (crear o unirse a sala, código, posiciones, iniciar partida, guía y sonido) están en un menú lateral. Se abre solo al entrar, si se corta la conexión o al terminar la partida, y se cierra al empezar la cuenta regresiva.
 - **Tablero móvil ±4**: la opción "Tablero móvil" de la sala usa el rango de -4 a 4 para que las casillas sean más grandes en celulares; en pantallas angostas el tablero también usa márgenes más chicos.
 - **Cuadrantes nombrados**: el tablero muestra I, II, III y IV dentro de cada cuadrante, entre vértices, sin tapar puntos seleccionables.
-- **Animación de toque en la guía**: el paso "Cómo responder" muestra cómo tocar el vértice sin arrastrar.
 - **Respuesta revelada**: el punto objetivo nunca se dibuja durante la ronda (sería dar la respuesta). Después de responder, el tablero marca el vértice correcto.
 - **Pistas al fallar**: el juego explica el error más probable: orden invertido, signo de X o de Y, cuadrante equivocado o error de conteo, con el recorrido "primero X, después Y".
 - **Correcto pero segundo**: si respondés bien pero otro jugador llegó antes, se muestra como correcto (+0 puntos), no como error.

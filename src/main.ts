@@ -102,16 +102,16 @@ const tutorialElements = {
 	next: document.getElementById("btn-tutorial-next") as HTMLButtonElement | null,
 	close: document.getElementById("btn-tutorial-close") as HTMLButtonElement | null,
 	openButton: document.getElementById("btn-tutorial") as HTMLButtonElement | null,
-	tapDemo: document.getElementById("tutorial-tap-demo"),
+	scene: document.getElementById("tutorial-scene"),
 };
-const { overlay, title, body, progress, prev, next, close, openButton, tapDemo } = tutorialElements;
-if (overlay && title && body && progress && prev && next && close && openButton) {
+const { overlay, title, body, progress, prev, next, close, openButton, scene: tutorialScene } = tutorialElements;
+if (overlay && title && body && progress && prev && next && close && openButton && tutorialScene) {
 	const tutorial = setupTutorial(
-		{ overlay, title, body, progress, prev, next, close, openButton, tapDemo: tapDemo ?? undefined },
+		{ overlay, title, body, progress, prev, next, close, openButton, scene: tutorialScene },
 		window.localStorage,
 	);
 	document.addEventListener("keydown", (event) => {
-		if (event.key === "Escape" && tutorial.isOpen) tutorial.close();
+		if (event.key === "Escape" && tutorial.isOpen && tutorial.canClose) tutorial.close();
 	});
 }
 

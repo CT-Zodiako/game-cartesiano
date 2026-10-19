@@ -784,32 +784,98 @@
         text-align: center;
       }
       .tutorial-body {
-        min-height: 6.5em;
+        min-height: 3em;
+        margin: 10px 0 0;
+        text-align: center;
         color: var(--color-text);
         font-size: 1.1rem;
         line-height: 1.5;
       }
-      .tutorial-tap {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 14px;
-        margin: 4px 0 0;
-        padding: 12px;
-        border: 1px solid var(--color-border);
+      /* Animated mini board for each guide step; it mirrors the real board colors. */
+      .tutorial-scene {
+        display: grid;
+        place-items: center;
+        margin: 6px auto 0;
+      }
+      .tut-board {
+        width: min(100%, 300px);
+        height: auto;
         border-radius: 14px;
         background: var(--color-surface-input);
+        border: 1px solid var(--color-border);
       }
-      .tutorial-tap[hidden] {
-        display: none;
+      .tut-grid { stroke: var(--color-border); stroke-width: 1; }
+      .tut-axis { stroke: #16e7ff; stroke-width: 2; }
+      .tut-x-num, .tut-y-num, .tut-axis-name {
+        font: 700 11px Arial, sans-serif;
+        text-anchor: middle;
       }
-      .tutorial-tap-copy {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        color: var(--color-text-muted);
+      .tut-x-num { fill: #60a5fa; }
+      .tut-y-num { fill: #4ade80; text-anchor: end; }
+      .tut-axis-name { fill: var(--color-text); font-size: 12px; }
+      .tut-marker-outline { fill: none; stroke: #ffffff; stroke-width: 2; }
+      .tut-marker-fill { fill: #16e7ff; }
+      .tut-hand { fill: #ffffff; stroke: #050b2e; stroke-width: 1.5; }
+      .tut-ripple { fill: none; stroke: #facc15; stroke-width: 3; opacity: 0; }
+      .tut-bubble rect { fill: #facc15; }
+      .tut-bubble text {
+        fill: #050b2e;
+        font: 800 12px Arial, sans-serif;
+        text-anchor: middle;
       }
-      .tutorial-tap-copy strong { color: var(--color-text); }
+      .tut-pulse { fill: rgb(250 204 21 / 25%); stroke: #facc15; stroke-width: 2; animation: tut-pulse 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+      .tut-trail, .tut-trail-done { stroke-width: 4; stroke-linecap: round; }
+      .tut-trail { stroke-dasharray: 1; stroke-dashoffset: 1; animation: tut-draw 4s ease-in-out infinite; }
+      .tut-trail-x { stroke: #60a5fa; }
+      .tut-trail-y { stroke: #4ade80; }
+      .tut-trail-done { stroke-dasharray: 6 5; opacity: 0.8; }
+      .tut-axis-glow { stroke-width: 10; stroke-linecap: round; opacity: 0; animation: tut-glow 4s ease-in-out infinite; }
+      .tut-axis-glow-x { stroke: rgb(96 165 250 / 45%); }
+      .tut-slide { animation: tut-slide 4s ease-in-out infinite; }
+      .tut-pop { animation: tut-pop 4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+      .tut-pop.tut-late { animation-name: tut-pop-late; }
+      .tut-tap .tut-hand { animation: tut-tap 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: top left; }
+      .tut-tap .tut-ripple { animation: tut-ripple 1.6s ease-out infinite; }
+      .tut-quadrant { fill: #c4b5fd; opacity: 0; animation: tut-quadrant 6s ease-in-out infinite; animation-delay: calc(var(--order) * 1s); }
+      .tut-quadrant-label {
+        fill: var(--color-text);
+        font: 800 13px Arial, sans-serif;
+        text-anchor: middle;
+        opacity: 0;
+        animation: tut-quadrant-label 6s ease-in-out infinite;
+        animation-delay: calc(var(--order) * 1s);
+      }
+      .tut-target { animation: tut-pop 6s ease-in-out infinite; }
+      [data-scene="answer"] .tut-trail { animation-duration: 6s; }
+      [data-scene="answer"] .tut-trail-x { animation-name: tut-draw-first; }
+      [data-scene="answer"] .tut-trail-y { animation-name: tut-draw-second; }
+      .tut-walk { animation: tut-walk 6s ease-in-out infinite; }
+      .tut-walk .tut-ripple { animation: tut-walk-ripple 6s ease-out infinite; }
+      .tut-appear { opacity: 0; animation: tut-appear 6s ease-in-out infinite; }
+      .tut-success { opacity: 0; animation: tut-success 6s ease-in-out infinite; }
+      @keyframes tut-pulse { 0%, 100% { transform: scale(0.8); opacity: 0.6; } 50% { transform: scale(1.35); opacity: 1; } }
+      @keyframes tut-draw { 0%, 15% { stroke-dashoffset: 1; } 55%, 100% { stroke-dashoffset: 0; } }
+      @keyframes tut-glow { 0%, 10% { opacity: 0; } 30%, 70% { opacity: 1; } 100% { opacity: 0; } }
+      @keyframes tut-slide { 0%, 15% { transform: translate(0, 0); } 55%, 100% { transform: translate(var(--dx), var(--dy)); } }
+      @keyframes tut-pop { 0%, 10% { opacity: 0; } 25%, 90% { opacity: 1; } 100% { opacity: 0; } }
+      @keyframes tut-pop-late { 0%, 55% { opacity: 0; } 65%, 95% { opacity: 1; } 100% { opacity: 0; } }
+      @keyframes tut-tap { 0%, 40%, 70%, 100% { transform: scale(1); } 50%, 60% { transform: scale(0.8); } }
+      @keyframes tut-ripple { 0%, 45% { opacity: 0; r: 6px; } 55% { opacity: 1; } 90%, 100% { opacity: 0; r: 18px; } }
+      @keyframes tut-quadrant { 0% { opacity: 0; } 8%, 40% { opacity: 0.35; } 55%, 100% { opacity: 0.12; } }
+      @keyframes tut-quadrant-label { 0% { opacity: 0; } 8%, 100% { opacity: 1; } }
+      @keyframes tut-draw-first { 0%, 15% { stroke-dashoffset: 1; } 40%, 100% { stroke-dashoffset: 0; } }
+      @keyframes tut-draw-second { 0%, 42% { stroke-dashoffset: 1; } 60%, 100% { stroke-dashoffset: 0; } }
+      @keyframes tut-walk {
+        0%, 15% { transform: translate(120px, 120px); }
+        40% { transform: translate(calc(120px + var(--wx)), 120px); }
+        60%, 100% { transform: translate(calc(120px + var(--wx)), calc(120px + var(--wy))); }
+      }
+      @keyframes tut-walk-ripple { 0%, 62% { opacity: 0; r: 6px; } 68% { opacity: 1; } 80%, 100% { opacity: 0; r: 18px; } }
+      @keyframes tut-appear { 0%, 64% { opacity: 0; } 70%, 95% { opacity: 1; } 100% { opacity: 0; } }
+      @keyframes tut-success { 0%, 70% { opacity: 0; } 76%, 95% { opacity: 1; } 100% { opacity: 0; } }
+      @media (prefers-reduced-motion: reduce) {
+        .tutorial-scene * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; animation-fill-mode: forwards !important; }
+      }
       .tutorial-actions {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -1469,18 +1535,12 @@
       <div class="modal-content">
         <p id="tutorial-progress" class="tutorial-progress">1 de 5</p>
         <h2 id="tutorial-title" class="modal-title">El origen</h2>
+        <div id="tutorial-scene" class="tutorial-scene" aria-hidden="true"></div>
         <p id="tutorial-body" class="tutorial-body"></p>
-        <div id="tutorial-tap-demo" class="tutorial-tap" role="note" hidden>
-          <span class="tap-demo" aria-hidden="true"></span>
-          <span class="tutorial-tap-copy">
-            <strong>Toca en el vértice de la cuadrícula</strong>
-            <small>No arrastres</small>
-          </span>
-        </div>
         <div class="tutorial-actions">
           <button id="btn-tutorial-prev" class="modal-close-btn" type="button">Anterior</button>
           <button id="btn-tutorial-next" type="button">Siguiente</button>
-          <button id="btn-tutorial-close" type="button">Saltar guía</button>
+          <button id="btn-tutorial-close" type="button" hidden>Cerrar guía</button>
         </div>
       </div>
     </div>
