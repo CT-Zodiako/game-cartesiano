@@ -124,17 +124,17 @@ test("claim results appear as an animated friendly status card", () => {
 	assert.doesNotMatch(indexHtml, /Tu elección|id="selection-display"/);
 	assert.match(indexHtml, /\.claim-result-overlay\s*\{[^}]*position: fixed;[^}]*pointer-events: none;/);
 	assert.match(indexHtml, /\.claim-result-card\s*\{[^}]*animation: claim-result-pop 420ms/);
-	assert.match(mainSource, /window\.setTimeout\(\(\) =>[\s\S]*?\}, accepted \? 2000 : 4000\);/);
+	assert.match(mainSource, /window\.setTimeout\(\(\) =>[\s\S]*?\}, isCorrect \? 2000 : 4000\);/);
 	assert.match(mainSource, /function hideClaimResult\(\): void \{/);
 	assert.match(mainSource, /onlineState\.status = "COUNTDOWN";\s*hideClaimResult\(\);/);
 	assert.match(mainSource, /onlineState\.status = "ROUND_ACTIVE";\s*hideClaimResult\(\);/);
 	assert.match(indexHtml, /\.claim-result-card\.is-correct[^}]*border-color: #4ade80/);
 	assert.match(indexHtml, /\.claim-result-card\.is-error[^}]*border-color: #f87171/);
-	assert.match(mainSource, /showClaimResult\(accepted, event\.pointsEarned, selectedPosition, challenge\);/);
+	assert.match(mainSource, /showClaimResult\(accepted, event\.pointsEarned, selectedPosition, challenge, beaten\);/);
 	assert.match(mainSource, /event\.reason === "ROUND_NOT_ACTIVE"/);
 	assert.match(mainSource, /La ronda todavía no está activa\. Esperá al próximo objetivo/);
 	assert.match(mainSource, /Elegiste \(\$\{selected\.x\}, \$\{selected\.y\}\)<br>Buscábamos/);
-	assert.match(mainSource, /const title = accepted \? "✅ Correcto" : "❌ Error";/);
+	assert.match(mainSource, /const isCorrect = accepted \|\| beaten;\s*const title = isCorrect \? "✅ Correcto" : "❌ Error";/);
 	assert.match(mainSource, /window\.setTimeout\(\(\) =>/);
 });
 
@@ -156,6 +156,19 @@ test("wrong answers explain the mistake and the board reveals the target only af
 	);
 	assert.match(claimAckSource, /if \(event\.reason !== "ROUND_NOT_ACTIVE"\) scene\.revealTarget\(challenge\);/);
 	assert.match(claimAckSource, /panel\.setLateAlert\([^)]*\);\s*scene\.revealTarget\(challenge\);/);
+});
+
+test("a correct answer beaten by a faster player is shown as correct, not as an error", () => {
+	const claimAckSource = mainSource.slice(
+		mainSource.indexOf("handleClaimAck(ws"),
+		mainSource.indexOf("handleRankingUpdated(ws"),
+	);
+	// The server answers TOO_LATE only after validating the vertex, so the answer was right.
+	assert.match(claimAckSource, /const beaten = event\.reason === "TOO_LATE";/);
+	assert.match(claimAckSource, /sounds\.play\(accepted \|\| beaten \? "correct" : "wrong"\);/);
+	assert.match(claimAckSource, /✅ Correcto, pero alguien respondió antes \(\+0\)/);
+	assert.doesNotMatch(claimAckSource, /Tiempo agotado/);
+	assert.match(mainSource, /Alguien respondió antes\. \+0 puntos/);
 });
 
 test("the browser boot always initializes multiplayer without an offline branch", () => {

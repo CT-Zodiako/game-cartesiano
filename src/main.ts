@@ -220,6 +220,7 @@ function showClaimResult(
 	pointsEarned: number,
 	selected: { x: number; y: number },
 	target: { x: number; y: number } | null,
+	beaten = false,
 ): void {
 	let overlay = document.getElementById("claim-result-modal");
 	if (!overlay) {
@@ -230,20 +231,23 @@ function showClaimResult(
 		document.body.appendChild(overlay);
 	}
 	if (claimResultTimeout !== null) window.clearTimeout(claimResultTimeout);
-	const title = accepted ? "✅ Correcto" : "❌ Error";
+	const isCorrect = accepted || beaten;
+	const title = isCorrect ? "✅ Correcto" : "❌ Error";
 	const miss = target ? classifyMiss(selected, target) : null;
 	const hint = target && miss ? `<br><span class="claim-result-hint">${explainMiss(miss, target)}</span>` : "";
 	const detail = accepted
 		? `+${pointsEarned} puntos`
+		: beaten
+			? "Alguien respondió antes. +0 puntos"
 		: `Elegiste (${selected.x}, ${selected.y})<br>Buscábamos ${target ? `(${target.x}, ${target.y})` : "otro vértice"}${hint}`;
-	overlay.innerHTML = `<div class="claim-result-card ${accepted ? "is-correct" : "is-error"}">
+	overlay.innerHTML = `<div class="claim-result-card ${isCorrect ? "is-correct" : "is-error"}">
 		<h2 class="claim-result-title">${title}</h2>
 		<p class="claim-result-detail">${detail}</p>
 	</div>`;
 	overlay.classList.add("visible");
 	claimResultTimeout = window.setTimeout(() => {
 		overlay?.classList.remove("visible");
-	}, accepted ? 2000 : 4000);
+	}, isCorrect ? 2000 : 4000);
 }
 
 function hideClaimResult(): void {
@@ -509,16 +513,16 @@ function initOnlineMode(): void {
 
 	handleClaimAck(ws, (event) => {
 		const accepted = event.status === "ACCEPTED";
-		showClaimResult(accepted, event.pointsEarned, selectedPosition, challenge);
+		const beaten = event.reason === "TOO_LATE";
+		showClaimResult(accepted, event.pointsEarned, selectedPosition, challenge, beaten);
 		if (event.reason !== "ROUND_NOT_ACTIVE") scene.revealTarget(challenge);
-		sounds.play(accepted ? "correct"
-			: event.reason === "TOO_LATE" ? "timeout" : "wrong");
+		sounds.play(accepted || beaten ? "correct" : "wrong");
 		if (event.status === "ACCEPTED") {
 			feedbackText!.textContent = `✅ Correcto! +${event.pointsEarned} puntos`;
 			feedbackText!.style.color = "#4ade80";
 		} else {
 			if (event.reason === "TOO_LATE") {
-				feedbackText!.textContent = `❌ Tiempo agotado! (+0)`;
+				feedbackText!.textContent = "✅ Correcto, pero alguien respondió antes (+0)";
 			} else if (event.reason === "WRONG_TARGET") {
 				feedbackText!.textContent = `❌ Incorrecto (+0)`;
 			} else if (event.reason === "ROUND_NOT_ACTIVE") {
@@ -526,7 +530,7 @@ function initOnlineMode(): void {
 			} else {
 				feedbackText!.textContent = "❌ No se pudo registrar la elección.";
 			}
-			feedbackText!.style.color = "#f87171";
+			feedbackText!.style.color = beaten ? "#4ade80" : "#f87171";
 		}
 		// Opacar el tablero hasta la siguiente ronda
 		const gameContainer = document.getElementById("game-container");
