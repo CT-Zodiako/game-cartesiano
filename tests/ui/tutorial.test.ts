@@ -92,7 +92,7 @@ function finishStep(elements: ReturnType<typeof fakeTutorial>, clock: FakeClock)
 }
 
 test("the guide covers five short steps from the origin to answering", () => {
-	assert.equal(TUTORIAL_STEP_WAIT_SECONDS, 10);
+	assert.equal(TUTORIAL_STEP_WAIT_SECONDS, 5);
 	assert.deepEqual(
 		TUTORIAL_STEPS.map((step) => step.title),
 		["El origen", "Primero X", "Después Y", "Los cuadrantes", "Cómo responder"],
@@ -120,13 +120,13 @@ test("the first visit opens a mandatory guide that cannot be closed or skipped",
 	assert.ok(elements.overlay.classes.has("visible"));
 });
 
-test("Next unlocks only after ten seconds and shows the remaining time", () => {
+test("Next unlocks only after five seconds and shows the remaining time", () => {
 	const elements = fakeTutorial();
 	const clock = new FakeClock();
 	setupTutorial(elements, new FakeStorage(), clock.schedule);
 
 	assert.equal(elements.next.disabled, true);
-	assert.equal(elements.next.textContent, "Siguiente (10)");
+	assert.equal(elements.next.textContent, "Siguiente (5)");
 	elements.next.click();
 	assert.equal(elements.title.textContent, "El origen");
 
@@ -139,7 +139,7 @@ test("Next unlocks only after ten seconds and shows the remaining time", () => {
 	assert.equal(elements.next.textContent, "Siguiente");
 	elements.next.click();
 	assert.equal(elements.title.textContent, "Primero X");
-	assert.equal(elements.next.textContent, "Siguiente (10)");
+	assert.equal(elements.next.textContent, "Siguiente (5)");
 });
 
 test("each step shows its own animated scene", () => {
@@ -172,7 +172,7 @@ test("going back to a finished step does not wait again, but an unfinished step 
 	elements.next.click();
 	assert.equal(elements.title.textContent, "Primero X");
 	assert.equal(elements.next.disabled, true);
-	assert.equal(elements.next.textContent, "Siguiente (10)");
+	assert.equal(elements.next.textContent, "Siguiente (5)");
 });
 
 test("finishing the last step closes the guide and remembers it was seen", () => {
@@ -183,7 +183,7 @@ test("finishing the last step closes the guide and remembers it was seen", () =>
 
 	for (let step = 1; step < TUTORIAL_STEPS.length; step += 1) finishStep(elements, clock);
 	assert.equal(elements.title.textContent, "Cómo responder");
-	assert.equal(elements.next.textContent, "¡A jugar! (10)");
+	assert.equal(elements.next.textContent, "¡A jugar! (5)");
 	assert.equal(storage.getItem(TUTORIAL_STORAGE_KEY), null);
 
 	finishStep(elements, clock);

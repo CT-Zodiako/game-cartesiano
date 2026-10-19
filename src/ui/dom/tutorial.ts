@@ -2,7 +2,7 @@ import { renderTutorialScene } from "./tutorial-scenes.ts";
 
 export const TUTORIAL_STORAGE_KEY = "xy-arena-tutorial-seen";
 /** Seconds each step stays on screen before Next unlocks during the mandatory first run. */
-export const TUTORIAL_STEP_WAIT_SECONDS = 10;
+export const TUTORIAL_STEP_WAIT_SECONDS = 5;
 
 export interface TutorialStep {
 	title: string;

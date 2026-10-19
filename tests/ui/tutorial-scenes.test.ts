@@ -52,14 +52,16 @@ test("the quadrant scene lights up the four quadrants with their signs", () => {
 	}
 });
 
-test("the answer scene shows a full play: target, X move, Y move, tap, and success", () => {
+test("the answer scene shows a full play: target, X count, Y count, a tap without dragging, and success", () => {
 	const svg = renderTutorialScene(4);
 	assert.match(svg, /data-scene="answer"/);
 	// The target sits in the empty first quadrant so it never covers the axis numbers.
 	assert.match(svg, /class="tut-bubble tut-target" transform="translate\(179\.2 40\)"[^>]*>.*?>Buscá \(−2, 1\)</);
 	assert.match(svg, /<line class="tut-trail tut-trail-x" x1="120" y1="120" x2="56" y2="120"/);
 	assert.match(svg, /<line class="tut-trail tut-trail-y" x1="56" y1="120" x2="56" y2="88"/);
-	assert.match(svg, /class="tut-pointer tut-walk"/);
+	// The hand appears on the target and taps; it never travels, because the game says "No arrastres".
+	assert.match(svg, /class="tut-pointer tut-tap-in" transform="translate\(56 88\)"/);
+	assert.doesNotMatch(svg, /tut-walk|--wx|--wy/);
 	assert.match(svg, />✅ ¡Correcto!</);
 });
 

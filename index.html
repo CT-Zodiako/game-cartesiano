@@ -849,8 +849,9 @@
       [data-scene="answer"] .tut-trail { animation-duration: 6s; }
       [data-scene="answer"] .tut-trail-x { animation-name: tut-draw-first; }
       [data-scene="answer"] .tut-trail-y { animation-name: tut-draw-second; }
-      .tut-walk { animation: tut-walk 6s ease-in-out infinite; }
-      .tut-walk .tut-ripple { animation: tut-walk-ripple 6s ease-out infinite; }
+      .tut-tap-in { opacity: 0; animation: tut-tap-in 6s ease-in-out infinite; }
+      .tut-tap-in .tut-hand { animation: tut-tap-in-press 6s ease-in-out infinite; transform-box: fill-box; transform-origin: top left; }
+      .tut-tap-in .tut-ripple { animation: tut-tap-in-ripple 6s ease-out infinite; }
       .tut-appear { opacity: 0; animation: tut-appear 6s ease-in-out infinite; }
       .tut-success { opacity: 0; animation: tut-success 6s ease-in-out infinite; }
       @keyframes tut-pulse { 0%, 100% { transform: scale(0.8); opacity: 0.6; } 50% { transform: scale(1.35); opacity: 1; } }
@@ -865,12 +866,9 @@
       @keyframes tut-quadrant-label { 0% { opacity: 0; } 8%, 100% { opacity: 1; } }
       @keyframes tut-draw-first { 0%, 15% { stroke-dashoffset: 1; } 40%, 100% { stroke-dashoffset: 0; } }
       @keyframes tut-draw-second { 0%, 42% { stroke-dashoffset: 1; } 60%, 100% { stroke-dashoffset: 0; } }
-      @keyframes tut-walk {
-        0%, 15% { transform: translate(120px, 120px); }
-        40% { transform: translate(calc(120px + var(--wx)), 120px); }
-        60%, 100% { transform: translate(calc(120px + var(--wx)), calc(120px + var(--wy))); }
-      }
-      @keyframes tut-walk-ripple { 0%, 62% { opacity: 0; r: 6px; } 68% { opacity: 1; } 80%, 100% { opacity: 0; r: 18px; } }
+      @keyframes tut-tap-in { 0%, 58% { opacity: 0; } 62%, 95% { opacity: 1; } 100% { opacity: 0; } }
+      @keyframes tut-tap-in-press { 0%, 63% { transform: scale(1); } 66%, 69% { transform: scale(0.8); } 72%, 100% { transform: scale(1); } }
+      @keyframes tut-tap-in-ripple { 0%, 64% { opacity: 0; r: 6px; } 68% { opacity: 1; } 80%, 100% { opacity: 0; r: 18px; } }
       @keyframes tut-appear { 0%, 64% { opacity: 0; } 70%, 95% { opacity: 1; } 100% { opacity: 0; } }
       @keyframes tut-success { 0%, 70% { opacity: 0; } 76%, 95% { opacity: 1; } 100% { opacity: 0; } }
       @media (prefers-reduced-motion: reduce) {

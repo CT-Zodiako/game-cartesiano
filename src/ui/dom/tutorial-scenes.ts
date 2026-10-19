@@ -120,7 +120,8 @@ function answerScene(): string {
 			trail("x", origin, corner) +
 			trail("y", corner, target) +
 			`<g transform="translate(${target.x} ${target.y})"><g class="tut-appear">${marker()}</g></g>` +
-			pointer("tut-walk", origin.x, origin.y, `--wx: ${corner.x - origin.x}px; --wy: ${target.y - origin.y}px`) +
+			// The hand appears on the vertex and taps: moving it would contradict "No arrastres".
+			pointer("tut-tap-in", target.x, target.y) +
 			bubble("tut-success", target.x + 10, target.y - 34, "✅ ¡Correcto!"),
 	);
 }
