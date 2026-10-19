@@ -47,3 +47,23 @@ test('renders one QR code, title, and link per form, grouped by condition', asyn
 	for (const form of TEACHER_FORMS) assert.ok(html.includes(`href="${form.url}"`), form.url);
 	assert.ok(html.indexOf('Grupo A (juego)') < html.indexOf('Grupo B (explicación)'));
 });
+
+test('every card offers a full-screen view for projectors and phones', async () => {
+	const html = await renderTeacherPage();
+	const buttons = [...html.matchAll(/<button type="button" class="fullscreen-btn" data-qr="(\d+)">Pantalla completa<\/button>/g)];
+	assert.deepEqual(buttons.map((match) => Number(match[1])), [0, 1, 2, 3, 4]);
+	assert.match(html, /<div id="qr-stage" class="qr-stage" role="dialog" aria-modal="true" aria-labelledby="qr-stage-title" hidden>/);
+	for (const id of ['qr-stage-title', 'qr-stage-code', 'qr-stage-prev', 'qr-stage-next', 'qr-stage-close', 'qr-stage-counter']) {
+		assert.ok(html.includes(`id="${id}"`), id);
+	}
+	// The stage reads its titles from the cards so it shows the same five forms in the same order.
+	for (const [index, form] of TEACHER_FORMS.entries()) {
+		assert.ok(html.includes(`data-qr-title="${form.group} · ${form.title}"`), String(index));
+	}
+	assert.match(html, /requestFullscreen/);
+	assert.match(html, /wakeLock/);
+	assert.match(html, /\.qr-stage\s*\{[^}]*position: fixed;[^}]*background: #ffffff;/);
+	assert.match(html, /\.qr-stage \.qr\s*\{[^}]*width: min\(92vw, calc\(100dvh - 190px\)\);/);
+	// The title keeps clear of the close button on narrow phones.
+	assert.match(html, /\.qr-stage h2 \{[^}]*padding: 0 72px;/);
+});

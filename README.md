@@ -87,5 +87,7 @@ Esto ejecuta los tests de UI y servidor (`tests/ui/*.test.ts` y `tests/server/*.
 | `DOCENTE_PASSWORD` | Contraseña obligatoria. Sin ella, `/docente` responde 404. |
 | `DOCENTE_USER` | Usuario (por defecto `docente`). |
 
+Cada QR tiene un botón **Pantalla completa** para proyectarlo o mostrarlo desde el teléfono: fondo blanco, el QR lo más grande posible, paso al anterior o siguiente con flechas, teclado o deslizando, y la pantalla del teléfono no se apaga mientras está abierto.
+
 En Railway se configuran en el servicio → Variables. Los enlaces de los formularios están en `server/teacher-page.ts`.
 
