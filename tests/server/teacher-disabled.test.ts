@@ -29,6 +29,9 @@ before(async () => {
 	const env: NodeJS.ProcessEnv = { ...process.env, PORT: String(port) };
 	delete env.DOCENTE_USER;
 	delete env.DOCENTE_PASSWORD;
+	// Dev mode: STATIC_ROOT falls back to the repository root, the riskiest static configuration.
+	delete env.NODE_ENV;
+	delete env.STATIC_ROOT;
 	child = spawn(TSX_BIN, ['server.ts'], { cwd: REPO_ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
 	const deadline = Date.now() + 15_000;
 	for (;;) {
@@ -54,3 +57,23 @@ test('without a configured password the teacher page does not exist', async () =
 	assert.equal(res.headers.get('www-authenticate'), null);
 	assert.doesNotMatch(await res.text(), /docs\.google\.com/);
 });
+
+test('server and test sources are never served as static files, even in dev mode', async () => {
+	for (const urlPath of [
+		'/server/teacher-page.ts',
+		'/tests/server/teacher-page.test.ts',
+		'/server.ts',
+		'/.git/config',
+		'/%73erver/teacher-page.ts',
+	]) {
+		const res = await fetch(`${baseUrl}${urlPath}`);
+		assert.equal(res.status, 404, urlPath);
+		assert.doesNotMatch(await res.text(), /1FAIpQL/, urlPath);
+	}
+});
+
+test('regular static files are still served in dev mode', async () => {
+	const res = await fetch(`${baseUrl}/index.html`);
+	assert.equal(res.status, 200);
+});
+

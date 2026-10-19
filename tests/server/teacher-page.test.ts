@@ -35,6 +35,7 @@ test('accepts only the exact Basic credentials', () => {
 
 test('a password containing a colon still matches', () => {
 	assert.equal(isAuthorized(basic('docente', 'a:b:c'), 'docente', 'a:b:c'), true);
+	assert.equal(isAuthorized(basic('docente', 'a'), 'docente', 'a:b:c'), false);
 });
 
 test('renders one QR code, title, and link per form, grouped by condition', async () => {

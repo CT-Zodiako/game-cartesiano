@@ -21,6 +21,8 @@ const MIME: Record<string, string> = {
   '.svg': 'image/svg+xml',
 };
 
+const PRIVATE_STATIC_DIRS = new Set(['server', 'tests', 'node_modules', 'odd', 'investigacion']);
+
 const gateway = new WsGateway({ now: () => Date.now() });
 
 // The private teacher page exists only when a password is configured (Railway variables).
@@ -68,6 +70,13 @@ const server = http.createServer((req, res) => {
   if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
     res.writeHead(403);
     res.end('Forbidden');
+    return;
+  }
+  // In dev the static root is the repository: never expose server code, tests, or dotfiles (they hold private data).
+  const [firstSegment = ''] = relativePath.split(path.sep);
+  if (PRIVATE_STATIC_DIRS.has(firstSegment) || relativePath === 'server.ts' || relativePath.split(path.sep).some((part) => part.startsWith('.'))) {
+    res.writeHead(404);
+    res.end('Not found');
     return;
   }
   const ext = path.extname(filePath).toLowerCase();
