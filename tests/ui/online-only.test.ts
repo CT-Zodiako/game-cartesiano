@@ -154,7 +154,10 @@ test("wrong answers explain the mistake and the board reveals the target only af
 		mainSource.indexOf("handleClaimAck(ws"),
 		mainSource.indexOf("handleRankingUpdated(ws"),
 	);
-	assert.match(claimAckSource, /if \(event\.reason !== "ROUND_NOT_ACTIVE"\) scene\.revealTarget\(challenge\);/);
+	assert.match(claimAckSource, /if \(event\.reason !== "ROUND_NOT_ACTIVE"\) \{\s*showClaimResult\(accepted, event\.pointsEarned, selectedPosition, challenge, beaten\);\s*scene\.revealTarget\(challenge\);\s*recordAnswer\(selectedPosition\);\s*\}/);
+	assert.match(claimAckSource, /gameContainer\.classList\.toggle\("revealed", event\.reason !== "ROUND_NOT_ACTIVE"\);/);
+	assert.match(roundStartedSource, /gameContainer\.classList\.remove\("dimmed", "revealed"\);/);
+	assert.match(indexHtml, /#game-container\.dimmed\.revealed \{ opacity: 0\.85; \}/);
 	assert.match(claimAckSource, /panel\.setLateAlert\([^)]*\);\s*scene\.revealTarget\(challenge\);/);
 });
 
@@ -187,7 +190,7 @@ test("the final ranking shows the player's own summary for the finished game", (
 		mainSource.indexOf("handleClaimAck(ws"),
 		mainSource.indexOf("handleLateAlert(ws"),
 	);
-	assert.match(claimAckSource, /if \(event\.reason !== "ROUND_NOT_ACTIVE"\) recordAnswer\(selectedPosition\);/);
+	assert.match(claimAckSource, /scene\.revealTarget\(challenge\);\s*recordAnswer\(selectedPosition\);/);
 	assert.match(mainSource, /<div class="personal-summary" id="personal-summary" aria-live="polite"><\/div>/);
 	assert.match(mainSource, /renderPersonalSummary\(summarizeAnswers\(gameAnswers\)\);/);
 	assert.match(mainSource, /Aciertos: \$\{summary\.hits\} de \$\{summary\.total\} \(\$\{summary\.accuracy\}%\)/);

@@ -400,7 +400,10 @@ function resetOnlineRoom(): void {
 	const targetEl = document.getElementById("target-coord");
 	if (targetEl) targetEl.textContent = "...";
 	const gameContainer = document.getElementById("game-container");
-	if (gameContainer) gameContainer.classList.add("dimmed");
+	if (gameContainer) {
+		gameContainer.classList.add("dimmed");
+		gameContainer.classList.remove("revealed");
+	}
 }
 
 /**
@@ -496,7 +499,10 @@ function initOnlineMode(): void {
 			feedbackText.style.color = "";
 		}
 		const gameContainer = document.getElementById("game-container");
-		if (gameContainer) gameContainer.classList.add("dimmed");
+		if (gameContainer) {
+			gameContainer.classList.add("dimmed");
+			gameContainer.classList.remove("revealed");
+		}
 	});
 
 	handleRoundStarted(ws, (event: RoundStartedEvent) => {
@@ -518,7 +524,7 @@ function initOnlineMode(): void {
 		}
 		// Restaurar el tablero para la nueva ronda
 		const gameContainer = document.getElementById("game-container");
-		if (gameContainer) gameContainer.classList.remove("dimmed");
+		if (gameContainer) gameContainer.classList.remove("dimmed", "revealed");
 		if (event.target) {
 			challenge = event.target;
 			gameAnswers.push({ target: { ...event.target }, selected: null });
@@ -532,9 +538,12 @@ function initOnlineMode(): void {
 	handleClaimAck(ws, (event) => {
 		const accepted = event.status === "ACCEPTED";
 		const beaten = event.reason === "TOO_LATE";
-		showClaimResult(accepted, event.pointsEarned, selectedPosition, challenge, beaten);
-		if (event.reason !== "ROUND_NOT_ACTIVE") scene.revealTarget(challenge);
-		if (event.reason !== "ROUND_NOT_ACTIVE") recordAnswer(selectedPosition);
+		// A click after the round closed is not a coordinate mistake: skip the result card and the reveal.
+		if (event.reason !== "ROUND_NOT_ACTIVE") {
+			showClaimResult(accepted, event.pointsEarned, selectedPosition, challenge, beaten);
+			scene.revealTarget(challenge);
+			recordAnswer(selectedPosition);
+		}
 		sounds.play(accepted || beaten ? "correct" : "wrong");
 		if (event.status === "ACCEPTED") {
 			feedbackText!.textContent = `✅ Correcto! +${event.pointsEarned} puntos`;
@@ -551,9 +560,12 @@ function initOnlineMode(): void {
 			}
 			feedbackText!.style.color = beaten ? "#4ade80" : "#f87171";
 		}
-		// Opacar el tablero hasta la siguiente ronda
+		// Opacar el tablero hasta la siguiente ronda, pero dejando legible la respuesta revelada
 		const gameContainer = document.getElementById("game-container");
-		if (gameContainer) gameContainer.classList.add("dimmed");
+		if (gameContainer) {
+			gameContainer.classList.add("dimmed");
+			gameContainer.classList.toggle("revealed", event.reason !== "ROUND_NOT_ACTIVE");
+		}
 	});
 
 	handleLateAlert(ws, (event) => {

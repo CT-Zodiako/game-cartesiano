@@ -331,6 +331,8 @@
         pointer-events: none;
         transition: opacity 0.3s ease;
       }
+      /* After answering, the board stays locked but readable so the revealed answer is visible. */
+      #game-container.dimmed.revealed { opacity: 0.85; }
       /* Panel de estado en modo online */
       .score-panel {
         display: flex;
