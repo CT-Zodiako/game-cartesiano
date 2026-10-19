@@ -77,3 +77,15 @@ Esto ejecuta los tests de UI y servidor (`tests/ui/*.test.ts` y `tests/server/*.
 - **Resumen personal**: al terminar, cada jugador ve aciertos, errores, rondas sin responder, porcentaje y una sugerencia según su error más frecuente.
 - **Sonido**: el botón 🔊/🔇 silencia los sonidos y recuerda la elección.
 - **Conexión perdida**: si se corta la conexión dentro de una sala, el juego vuelve al menú, lo explica y deja precargado el código para volver a unirse.
+
+## Página privada de encuestas (`/docente`)
+
+`/docente` muestra los códigos QR de los formularios publicados (pretest y postest de cada grupo, y la evaluación V3 del juego). Está protegida con usuario y contraseña del navegador (HTTP Basic) y sólo existe si el servidor tiene configurada la contraseña:
+
+| Variable | Uso |
+|---|---|
+| `DOCENTE_PASSWORD` | Contraseña obligatoria. Sin ella, `/docente` responde 404. |
+| `DOCENTE_USER` | Usuario (por defecto `docente`). |
+
+En Railway se configuran en el servicio → Variables. Los enlaces de los formularios están en `server/teacher-page.ts`.
+

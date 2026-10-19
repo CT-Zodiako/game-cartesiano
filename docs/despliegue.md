@@ -109,6 +109,7 @@ WantedBy=multi-user.target
 2. Build command: `npm run build` (genera `dist/`)
 3. Start command: `npm start` (corre `tsx server.ts`)
 4. Variable de entorno: `NODE_ENV=production` (sirve estáticos desde `dist/`)
+   - Opcional: `DOCENTE_PASSWORD` (y `DOCENTE_USER`, por defecto `docente`) habilita la página privada `/docente` con los QR de las encuestas.
 5. Health check: `GET /health` ya responde `{"status":"ok","rooms":N}`
 ```
 

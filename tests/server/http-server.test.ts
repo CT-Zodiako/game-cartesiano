@@ -74,6 +74,8 @@ before(async () => {
 			PORT: String(port),
 			NODE_ENV: 'production',
 			STATIC_ROOT: staticRoot,
+			DOCENTE_USER: 'docente',
+			DOCENTE_PASSWORD: 'test-secret',
 		},
 		stdio: ['ignore', 'pipe', 'pipe'],
 	});
@@ -100,6 +102,36 @@ test('GET / serves index.html from STATIC_ROOT in production', async () => {
 	assert.equal(res.status, 200);
 	const body = await res.text();
 	assert.equal(body, INDEX_HTML);
+});
+
+const teacherAuth = (user: string, password: string): string =>
+	`Basic ${Buffer.from(`${user}:${password}`).toString('base64')}`;
+
+test('GET /docente asks for credentials and rejects wrong ones', async () => {
+	for (const headers of [{}, { Authorization: teacherAuth('docente', 'nope') }]) {
+		const res = await fetch(`${baseUrl}/docente`, { headers });
+		assert.equal(res.status, 401);
+		assert.match(res.headers.get('www-authenticate') ?? '', /^Basic realm="XY Arena docente"/);
+		assert.equal(res.headers.get('cache-control'), 'no-store');
+		const body = await res.text();
+		assert.doesNotMatch(body, /docs\.google\.com/);
+	}
+});
+
+test('GET /docente with the right credentials serves the private QR page', async () => {
+	const res = await fetch(`${baseUrl}/docente`, { headers: { Authorization: teacherAuth('docente', 'test-secret') } });
+	assert.equal(res.status, 200);
+	assert.match(res.headers.get('content-type') ?? '', /text\/html/);
+	assert.equal(res.headers.get('cache-control'), 'no-store');
+	assert.equal(res.headers.get('x-robots-tag'), 'noindex, nofollow');
+	assert.equal(res.headers.get('referrer-policy'), 'no-referrer');
+	const body = await res.text();
+	assert.equal(body.match(/<svg[^>]*class="qr"/g)?.length, 5);
+});
+
+test('GET /docente/ with a trailing slash is protected the same way', async () => {
+	const res = await fetch(`${baseUrl}/docente/`);
+	assert.equal(res.status, 401);
 });
 
 test('path traversal outside STATIC_ROOT is rejected (403 or 404)', async () => {

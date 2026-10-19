@@ -15,11 +15,13 @@
     "test:watch": "tsx --test --watch tests/ui/*.test.ts tests/server/*.test.ts"
   },
   "dependencies": {
+    "qrcode": "^1.5.4",
     "tsx": "^4.21.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^25.7.0",
+    "@types/qrcode": "^1.5.6",
     "@types/ws": "^8.18.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.12",

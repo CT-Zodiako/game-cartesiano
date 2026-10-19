@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { WsGateway } from './server/ws-gateway.js';
+import { isAuthorized, renderTeacherPage } from './server/teacher-page.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 8080);
@@ -22,6 +23,10 @@ const MIME: Record<string, string> = {
 
 const gateway = new WsGateway({ now: () => Date.now() });
 
+// The private teacher page exists only when a password is configured (Railway variables).
+const DOCENTE_USER = process.env.DOCENTE_USER || 'docente';
+const DOCENTE_PASSWORD = process.env.DOCENTE_PASSWORD ?? '';
+
 const server = http.createServer((req, res) => {
   const urlPath = req.url?.split('?')[0] ?? '/';
   if (urlPath.startsWith('/ws')) return;
@@ -30,6 +35,30 @@ const server = http.createServer((req, res) => {
     const body = JSON.stringify({ status: 'ok', rooms: gateway.roomEngine.roomsById.size });
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(body);
+    return;
+  }
+
+  if (urlPath === '/docente' || urlPath === '/docente/') {
+    if (!DOCENTE_PASSWORD) {
+      res.writeHead(404);
+      res.end('Not found');
+      return;
+    }
+    const privateHeaders = { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow', 'Referrer-Policy': 'no-referrer' };
+    if (!isAuthorized(req.headers.authorization, DOCENTE_USER, DOCENTE_PASSWORD)) {
+      res.writeHead(401, { ...privateHeaders, 'WWW-Authenticate': 'Basic realm="XY Arena docente", charset="UTF-8"', 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Acceso restringido');
+      return;
+    }
+    renderTeacherPage()
+      .then((html) => {
+        res.writeHead(200, { ...privateHeaders, 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(html);
+      })
+      .catch(() => {
+        res.writeHead(500, privateHeaders);
+        res.end('Error');
+      });
     return;
   }
 
