@@ -672,6 +672,64 @@
         border-color: #94a3b8;
       }
 
+      /* Guía "¿Cómo se juega?" */
+      .tutorial-btn {
+        display: block;
+        width: 100%;
+        min-height: 44px;
+        margin: 0 0 8px;
+        border: 2px solid var(--color-focus);
+        border-radius: 12px;
+        background: transparent;
+        color: var(--color-text);
+        font-size: 1rem;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .tutorial-btn:focus-visible, .tutorial-actions button:focus-visible {
+        outline: 3px solid var(--color-focus);
+        outline-offset: 2px;
+      }
+      .tutorial-progress {
+        margin: 0 0 4px;
+        color: var(--color-text-muted);
+        font-size: 0.9rem;
+        text-align: center;
+      }
+      .tutorial-body {
+        min-height: 6.5em;
+        color: var(--color-text);
+        font-size: 1.1rem;
+        line-height: 1.5;
+      }
+      .tutorial-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 16px;
+      }
+      .tutorial-actions button {
+        min-height: 48px;
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .tutorial-actions button:disabled { opacity: 0.45; cursor: not-allowed; }
+      #btn-tutorial-next {
+        border: 2px solid #4ade80;
+        background: #166534;
+        color: #ffffff;
+      }
+      #btn-tutorial-close {
+        grid-column: 1 / -1;
+        min-height: 40px;
+        border: none;
+        background: transparent;
+        color: var(--color-text-muted);
+        text-decoration: underline;
+      }
+
       /* Feedback */
       #feedback-text {
         text-align: center;
@@ -1129,6 +1187,7 @@
           <img class="game-brand-logo" src="/assets/logo.png" alt="XY Arena" />
         </div>
         <p id="connection-status" class="connection-status" role="status">Conectando con la sala...</p>
+        <button id="btn-tutorial" class="tutorial-btn" type="button">¿Cómo se juega?</button>
 
         <!-- Menú de entrada online -->
           <div id="online-entry-menu" class="online-menu">
@@ -1244,5 +1303,17 @@
     </div>
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
   <script type="module" src="/src/main.ts"></script>
+    <div id="tutorial-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
+      <div class="modal-content">
+        <p id="tutorial-progress" class="tutorial-progress">1 de 5</p>
+        <h2 id="tutorial-title" class="modal-title">El origen</h2>
+        <p id="tutorial-body" class="tutorial-body"></p>
+        <div class="tutorial-actions">
+          <button id="btn-tutorial-prev" class="modal-close-btn" type="button">Anterior</button>
+          <button id="btn-tutorial-next" type="button">Siguiente</button>
+          <button id="btn-tutorial-close" type="button">Saltar guía</button>
+        </div>
+      </div>
+    </div>
   </body>
 </html>

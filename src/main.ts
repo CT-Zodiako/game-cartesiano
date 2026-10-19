@@ -3,6 +3,7 @@ import type { RoverState } from "@domain/rover/types.ts";
 import { RoverScene } from "@ui/phaser/RoverScene.ts";
 import { createStatePanel } from "@ui/dom/statePanel.ts";
 import { setupThemeToggle } from "@ui/dom/theme.ts";
+import { setupTutorial } from "@ui/dom/tutorial.ts";
 import {
 	WSClient,
 	handleRoomSnapshot,
@@ -80,6 +81,27 @@ if (themeToggle) {
 		window.localStorage,
 		(theme) => scene.setTheme(theme),
 	);
+}
+
+const tutorialElements = {
+	overlay: document.getElementById("tutorial-modal"),
+	title: document.getElementById("tutorial-title"),
+	body: document.getElementById("tutorial-body"),
+	progress: document.getElementById("tutorial-progress"),
+	prev: document.getElementById("btn-tutorial-prev") as HTMLButtonElement | null,
+	next: document.getElementById("btn-tutorial-next") as HTMLButtonElement | null,
+	close: document.getElementById("btn-tutorial-close") as HTMLButtonElement | null,
+	openButton: document.getElementById("btn-tutorial") as HTMLButtonElement | null,
+};
+const { overlay, title, body, progress, prev, next, close, openButton } = tutorialElements;
+if (overlay && title && body && progress && prev && next && close && openButton) {
+	const tutorial = setupTutorial(
+		{ overlay, title, body, progress, prev, next, close, openButton },
+		window.localStorage,
+	);
+	document.addEventListener("keydown", (event) => {
+		if (event.key === "Escape" && tutorial.isOpen) tutorial.close();
+	});
 }
 
 // Elementos del menú online
