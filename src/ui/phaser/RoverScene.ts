@@ -9,7 +9,8 @@ interface BoardPalette {
   background: number;
   grid: number;
   axis: number;
-  label: string;
+  xLabel: string;
+  yLabel: string;
   axisLabel: string;
   path: number;
   marker: number;
@@ -22,7 +23,8 @@ export const BOARD_PALETTES: Record<BoardTheme, BoardPalette> = {
     background: 0x050b2e,
     grid: 0x4c7dff,
     axis: 0x16e7ff,
-    label: '#ff7bea',
+    xLabel: '#60a5fa',
+    yLabel: '#4ade80',
     axisLabel: '#eef7ff',
     path: 0xff00d4,
     marker: 0x16e7ff,
@@ -33,7 +35,8 @@ export const BOARD_PALETTES: Record<BoardTheme, BoardPalette> = {
     background: 0xeef7ff,
     grid: 0x4774b8,
     axis: 0x087ee8,
-    label: '#a21caf',
+    xLabel: '#1d4ed8',
+    yLabel: '#166534',
     axisLabel: '#08133d',
     path: 0xc026d3,
     marker: 0x087ee8,
@@ -193,11 +196,12 @@ export class RoverScene extends Phaser.Scene {
     this.gfx.lineBetween(centerX, margin, centerX, margin + h); // Y axis
     this.gfx.lineBetween(margin, centerY, margin + w, centerY); // X axis
 
+    // X numbers (blue) and Y numbers (green) match the class material so the two axes are not confused.
     // X axis labels (bottom)
     for (let x = -this.plateau.xMax; x <= this.plateau.xMax; x += 1) {
       if (x === 0) continue;
       const p = cellToPixel(x, 0, this.plateau, this.scale.width, this.scale.height, margin);
-      const txt = this.add.text(p.px, centerY + 8, String(x), { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: palette.label, fontStyle: 'bold', resolution: 2 });
+      const txt = this.add.text(p.px, centerY + 8, String(x), { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: palette.xLabel, fontStyle: 'bold', resolution: 2 });
       txt.setOrigin?.(0.5, 0);
       this.axisTexts.push(txt);
     }
@@ -205,7 +209,7 @@ export class RoverScene extends Phaser.Scene {
     for (let y = -this.plateau.yMax; y <= this.plateau.yMax; y += 1) {
       if (y === 0) continue;
       const p = cellToPixel(0, y, this.plateau, this.scale.width, this.scale.height, margin);
-      const txt = this.add.text(centerX - 8, p.py - 8, String(y), { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: palette.label, fontStyle: 'bold', resolution: 2 });
+      const txt = this.add.text(centerX - 8, p.py - 8, String(y), { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: palette.yLabel, fontStyle: 'bold', resolution: 2 });
       txt.setOrigin?.(1, 0);
       this.axisTexts.push(txt);
     }

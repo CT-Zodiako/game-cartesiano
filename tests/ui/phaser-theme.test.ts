@@ -42,7 +42,7 @@ class FakeGraphics {
 }
 
 class FakeText {
-	constructor(readonly style: { color?: string }) {}
+	constructor(readonly style: { color?: string }, readonly text = "", readonly x = 0, readonly y = 0) {}
 
 	destroy(): void {}
 }
@@ -104,8 +104,8 @@ class FakeScene {
 			zones.push(item);
 			return item;
 		},
-		text: (_x: number, _y: number, _text: string, style: { color?: string }): FakeText => {
-			const item = new FakeText(style);
+		text: (x: number, y: number, text: string, style: { color?: string }): FakeText => {
+			const item = new FakeText(style, text, x, y);
 			labels.push(item);
 			return item;
 		},
@@ -184,6 +184,28 @@ test("the round target stays hidden and is revealed on the board only after answ
 
 	scene.revealTarget(null);
 	assert.deepEqual(targetGraphics.circles, []);
+});
+
+function hexToNumber(color: string): number {
+	return Number.parseInt(color.slice(1), 16);
+}
+
+test("X and Y axis numbers use distinct readable colors in both themes", () => {
+	const scene = new RoverScene();
+	scene.create();
+
+	for (const theme of ["dark", "light"] as const) {
+		labels.length = 0;
+		scene.setTheme(theme);
+		const palette = BOARD_PALETTES[theme];
+		const xNumbers = labels.filter((label) => label.text === "3" && label.y > 200);
+		const yNumbers = labels.filter((label) => label.text === "3" && label.x < 200);
+		assert.deepEqual(xNumbers.map((label) => label.style.color), [palette.xLabel]);
+		assert.deepEqual(yNumbers.map((label) => label.style.color), [palette.yLabel]);
+		assert.notEqual(palette.xLabel, palette.yLabel);
+		assert.ok(contrastRatio(hexToNumber(palette.xLabel), palette.background) >= 4.5);
+		assert.ok(contrastRatio(hexToNumber(palette.yLabel), palette.background) >= 4.5);
+	}
 });
 
 function diamondCenter(points: { x: number; y: number }[]): { x: number; y: number } {
