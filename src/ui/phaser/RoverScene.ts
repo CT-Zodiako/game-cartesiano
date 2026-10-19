@@ -20,6 +20,8 @@ interface BoardPalette {
   marker: number;
   markerOutline: number;
   reveal: number;
+  revealLabelBackground: string;
+  revealLabelText: string;
 }
 
 export const BOARD_PALETTES: Record<BoardTheme, BoardPalette> = {
@@ -35,6 +37,8 @@ export const BOARD_PALETTES: Record<BoardTheme, BoardPalette> = {
     marker: 0x16e7ff,
     markerOutline: 0xffffff,
     reveal: 0xfacc15,
+    revealLabelBackground: '#facc15',
+    revealLabelText: '#050b2e',
   },
   light: {
     background: 0xeef7ff,
@@ -48,6 +52,8 @@ export const BOARD_PALETTES: Record<BoardTheme, BoardPalette> = {
     marker: 0x087ee8,
     markerOutline: 0x08133d,
     reveal: 0xb45309,
+    revealLabelBackground: '#b45309',
+    revealLabelText: '#ffffff',
   },
 };
 
@@ -268,6 +274,26 @@ export class RoverScene extends Phaser.Scene {
       this.targetGfx.lineStyle(2, palette.reveal, 0.8);
       this.targetGfx.lineBetween(targetPos.px - 12, targetPos.py, targetPos.px + 12, targetPos.py);
       this.targetGfx.lineBetween(targetPos.px, targetPos.py - 12, targetPos.px, targetPos.py + 12);
+
+      // Name the ring so students know it is the correct answer; the label opens toward the board center.
+      const opensLeft = this.revealedTarget.x >= 0;
+      const opensDown = this.revealedTarget.y >= 0;
+      const label = this.add.text(
+        targetPos.px + (opensLeft ? -22 : 22),
+        targetPos.py + (opensDown ? 22 : -22),
+        `Punto correcto (${this.revealedTarget.x}, ${this.revealedTarget.y})`,
+        {
+          fontFamily: 'Arial, sans-serif',
+          fontSize: '15px',
+          color: palette.revealLabelText,
+          backgroundColor: palette.revealLabelBackground,
+          fontStyle: 'bold',
+          padding: { x: 8, y: 4 },
+          resolution: 2,
+        },
+      );
+      label.setOrigin?.(opensLeft ? 1 : 0, opensDown ? 0 : 1);
+      this.axisTexts.push(label);
     }
 
     // Current position: a fixed-size, high-contrast diamond remains crisp as the board scales.

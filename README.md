@@ -71,7 +71,7 @@ Esto ejecuta los tests de UI y servidor (`tests/ui/*.test.ts` y `tests/server/*.
 - **Menú ☰ en celulares**: un botón "Menú" arriba, sobre el tiempo y la coordenada; el tablero queda pegado al encabezado y los controles (crear o unirse a sala, código, posiciones, iniciar partida, guía y sonido) están en un menú lateral. Se abre solo al entrar, si se corta la conexión o al terminar la partida, y se cierra al empezar la cuenta regresiva.
 - **Tablero móvil ±4**: la opción "Tablero móvil" de la sala usa el rango de -4 a 4 para que las casillas sean más grandes en celulares; en pantallas angostas el tablero también usa márgenes más chicos.
 - **Cuadrantes nombrados**: el tablero muestra I, II, III y IV dentro de cada cuadrante, entre vértices, sin tapar puntos seleccionables.
-- **Respuesta revelada**: el punto objetivo nunca se dibuja durante la ronda (sería dar la respuesta). Después de responder, el tablero marca el vértice correcto.
+- **Respuesta revelada**: el punto objetivo nunca se dibuja durante la ronda (sería dar la respuesta). Después de responder, el tablero marca el vértice correcto con un círculo y el cartel "Punto correcto (x, y)".
 - **Pistas al fallar**: el juego explica el error más probable: orden invertido, signo de X o de Y, cuadrante equivocado o error de conteo, con el recorrido "primero X, después Y".
 - **Correcto pero segundo**: si respondés bien pero otro jugador llegó antes, se muestra como correcto (+0 puntos), no como error.
 - **Resumen personal**: al terminar, cada jugador ve aciertos, errores, rondas sin responder, porcentaje y una sugerencia según su error más frecuente.

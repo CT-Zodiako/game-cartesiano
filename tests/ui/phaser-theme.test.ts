@@ -43,14 +43,23 @@ class FakeGraphics {
 
 class FakeText {
 	alpha = 1;
-	constructor(readonly style: { color?: string; fontSize?: string }, readonly text = "", readonly x = 0, readonly y = 0) {}
+	origin = { x: 0, y: 0 };
+	destroyed = false;
+	constructor(readonly style: { color?: string; fontSize?: string; backgroundColor?: string }, readonly text = "", readonly x = 0, readonly y = 0) {}
+
+	setOrigin(x: number, y: number): this {
+		this.origin = { x, y };
+		return this;
+	}
 
 	setAlpha(alpha: number): this {
 		this.alpha = alpha;
 		return this;
 	}
 
-	destroy(): void {}
+	destroy(): void {
+		this.destroyed = true;
+	}
 }
 
 class FakeSprite {
@@ -190,6 +199,29 @@ test("the round target stays hidden and is revealed on the board only after answ
 
 	scene.revealTarget(null);
 	assert.deepEqual(targetGraphics.circles, []);
+});
+
+test("the revealed answer is labeled and the label points toward the board center", () => {
+	const scene = new RoverScene();
+	scene.create();
+	const liveLabel = (text: string) => labels.filter((label) => label.text === text && !label.destroyed);
+
+	scene.revealTarget({ x: 0, y: 5 });
+	const topLabel = liveLabel("Punto correcto (0, 5)");
+	assert.equal(topLabel.length, 1);
+	assert.equal(topLabel[0].style.backgroundColor, BOARD_PALETTES.dark.revealLabelBackground);
+	// Top target: label goes below the ring; x = 0 counts as the right half, so it opens to the left.
+	assert.deepEqual(topLabel[0].origin, { x: 1, y: 0 });
+	assert.ok(topLabel[0].y > 30);
+
+	scene.revealTarget({ x: -4, y: -3 });
+	assert.equal(liveLabel("Punto correcto (0, 5)").length, 0);
+	const bottomLeft = liveLabel("Punto correcto (-4, -3)");
+	assert.equal(bottomLeft.length, 1);
+	assert.deepEqual(bottomLeft[0].origin, { x: 0, y: 1 });
+
+	scene.revealTarget(null);
+	assert.equal(labels.some((label) => label.text.startsWith("Punto correcto") && !label.destroyed), false);
 });
 
 function hexToNumber(color: string): number {
