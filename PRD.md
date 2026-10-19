@@ -6,6 +6,20 @@ Juego educativo multijugador en tiempo real donde los jugadores compiten por ubi
 
 ---
 
+## Actualización 2026-10-18
+
+La tabla de estado y los bugs de abajo son históricos. Estado verificado en esta fecha:
+
+- El servidor está en TypeScript (`server.ts` + `server/`) y comparte tipos de protocolo con el cliente.
+- Los tests de UI y servidor corren con `npm test` (136 tests en verde).
+- El objetivo se revela en el tablero sólo después de responder; mostrarlo durante la ronda daría la respuesta.
+- Mejoras de aprendizaje basadas en la encuesta: guía inicial, colores por eje, pistas por tipo de error, resumen personal, control de sonido y recuperación ante pérdida de conexión (ver README).
+
+Pendiente de decisión:
+
+- **Modo práctica individual**: hoy el juego es sólo online por decisión explícita (`tests/ui/online-only.test.ts`).
+- **Reconexión a la misma sala**: requiere un token de reconexión en el servidor (`reconnectToken` sigue sin implementar).
+
 ## Estado actual del proyecto
 
 | Área | Estado |

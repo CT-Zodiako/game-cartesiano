@@ -62,3 +62,14 @@ Esto ejecuta los tests de UI y servidor (`tests/ui/*.test.ts` y `tests/server/*.
 5. Todos ven el mismo objetivo y compiten por quién responde más rápido.
 6. Al terminar, el ranking final se cierra primero. Después, el host vuelve a ver el control normal **Iniciar partida**; este conserva sala, código, configuración y jugadores conectados, y usa una nueva cuenta regresiva antes de reiniciar puntajes y volver a la ronda 1. Los demás jugadores esperan al host.
 7. Si el host sale durante la cuenta regresiva, una partida activa o tras el ranking final, la sala se cancela para todos. Si un jugador no host sale durante la cuenta regresiva, esta se cancela y la sala vuelve al lobby o conserva su ranking final.
+
+## Aprendizaje y retroalimentación
+
+- **Guía "¿Cómo se juega?"**: explica origen, eje X, eje Y, el orden `(x, y)` y los cuadrantes. Se abre sola la primera vez y se puede reabrir desde el botón del panel.
+- **Colores por eje**: los números del eje X son azules y los del eje Y son verdes, igual que en el material de clase.
+- **Respuesta revelada**: el punto objetivo nunca se dibuja durante la ronda (sería dar la respuesta). Después de responder, el tablero marca el vértice correcto.
+- **Pistas al fallar**: el juego explica el error más probable: orden invertido, signo de X o de Y, cuadrante equivocado o error de conteo, con el recorrido "primero X, después Y".
+- **Correcto pero segundo**: si respondés bien pero otro jugador llegó antes, se muestra como correcto (+0 puntos), no como error.
+- **Resumen personal**: al terminar, cada jugador ve aciertos, errores, rondas sin responder, porcentaje y una sugerencia según su error más frecuente.
+- **Sonido**: el botón 🔊/🔇 silencia los sonidos y recuerda la elección.
+- **Conexión perdida**: si se corta la conexión dentro de una sala, el juego vuelve al menú, lo explica y deja precargado el código para volver a unirse.
