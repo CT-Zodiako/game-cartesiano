@@ -35,3 +35,7 @@ build/
 .pi-lens/
 .pi/
 .codegraph/
+
+# Research data: raw survey and test responses stay local (the repository is public)
+investigacion/*.csv
+investigacion/*.xlsx
