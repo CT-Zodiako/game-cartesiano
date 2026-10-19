@@ -23,7 +23,6 @@ test("tap selection guidance stays in the game header without taking board space
 
 test("mobile puts a viewport-sized square game stage before scrollable controls", () => {
 	const mobile = indexHtml.slice(indexHtml.indexOf('@media (max-width: 900px)'), indexHtml.indexOf('</style>'));
-	assert.match(mobile, /\.left\s*\{[^}]*order: 2;[^}]*max-height: none;[^}]*overflow: visible;/);
 	assert.match(mobile, /\.right\s*\{[^}]*order: 1;[^}]*box-sizing: border-box;[^}]*height: 100vh;[^}]*height: 100dvh;[^}]*grid-template-rows: auto minmax\(0, 1fr\) auto;/);
 	for (const edge of ['top', 'right', 'bottom', 'left']) {
 		assert.ok(mobile.includes(`env(safe-area-inset-${edge})`));
@@ -204,13 +203,13 @@ test("a new round makes the coordinate change obvious and clears the previous se
 	);
 	assert.match(roundStartedSource, /scene\.resetToInitial\(\);/);
 	assert.match(roundStartedSource, /announceNewTarget\(event\.roundId\);/);
-	assert.match(roundStartedSource, /showGameStage\(\);/);
+	assert.match(roundStartedSource, /mobileMenu\?\.close\(\);/);
 	const countdownSource = mainSource.slice(
 		mainSource.indexOf("handleGameCountdown(ws"),
 		mainSource.indexOf("handleRoundStarted(ws"),
 	);
-	assert.match(countdownSource, /showGameStage\(\);/);
-	assert.match(mainSource, /function showGameStage\(\): void \{[\s\S]*?if \(Math\.abs\(stage\.getBoundingClientRect\(\)\.top\) < 4\) return;[\s\S]*?stage\.scrollIntoView\(\{ block: "start", behavior: "smooth" \}\);/);
+	assert.match(countdownSource, /mobileMenu\?\.close\(\);/);
+	assert.doesNotMatch(mainSource, /scrollIntoView/);
 	assert.match(mainSource, /function announceNewTarget\(roundId: number\): void \{/);
 	assert.match(mainSource, /Ronda \$\{roundId\}\$\{totalRounds \? ` de \$\{totalRounds\}` : ""\}/);
 	assert.match(mainSource, /totalRounds = roomState\.config\?\.rounds \?\? 0;/);
@@ -221,8 +220,24 @@ test("a new round makes the coordinate change obvious and clears the previous se
 	assert.match(indexHtml, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.target-display\.target-changed \.target-value, #game-container\.round-flash \{ animation: none; \}/);
 });
 
+test("on phones the side panel opens when the player needs it and closes when play starts", () => {
+	assert.match(mainSource, /const isCompactLayout = \(\): boolean => window\.matchMedia\("\(max-width: 900px\)"\)\.matches;/);
+	assert.match(mainSource, /if \(event\.key === "Escape" && mobileMenu\?\.isOpen\) mobileMenu\.close\(\);/);
+	const resetSource = mainSource.slice(
+		mainSource.indexOf("function resetOnlineRoom"),
+		mainSource.indexOf("function handleRoomConnectionLoss"),
+	);
+	assert.match(resetSource, /mobileMenu\?\.open\(\);/);
+	const closeRankingSource = mainSource.slice(
+		mainSource.indexOf("function closeFinalRankingModal"),
+		mainSource.indexOf("// Helper para escapar HTML"),
+	);
+	assert.match(closeRankingSource, /if \(onlineState\.status === "FINAL"\) mobileMenu\?\.open\(\);/);
+	assert.match(mainSource, /initOnlineMode\(\);\s*\/\/ The first thing a player does[^\n]*\n\s*mobileMenu\?\.open\(\);\s*$/);
+});
+
 test("the browser boot always initializes multiplayer without an offline branch", () => {
-	assert.match(mainSource, /initOnlineMode\(\);\s*$/);
+	assert.match(mainSource, /initOnlineMode\(\);\s*\/\/[^\n]*\n\s*mobileMenu\?\.open\(\);\s*$/);
 	assert.doesNotMatch(
 		mainSource,
 		/__ONLINE_MODE|URLSearchParams|onlineMode|btn-play|newChallenge|randomCoord/,

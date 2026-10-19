@@ -5,6 +5,7 @@ import { createStatePanel } from "@ui/dom/statePanel.ts";
 import { setupThemeToggle } from "@ui/dom/theme.ts";
 import { setupTutorial } from "@ui/dom/tutorial.ts";
 import { setupSoundToggle } from "@ui/dom/sound-toggle.ts";
+import { setupMobileMenu, type MobileMenuController } from "@ui/dom/mobile-menu.ts";
 import {
 	WSClient,
 	handleRoomSnapshot,
@@ -113,6 +114,19 @@ if (overlay && title && body && progress && prev && next && close && openButton)
 		if (event.key === "Escape" && tutorial.isOpen) tutorial.close();
 	});
 }
+
+// Phones keep the board full screen; the side panel becomes an off-canvas menu.
+const isCompactLayout = (): boolean => window.matchMedia("(max-width: 900px)").matches;
+const menuToggle = document.getElementById("btn-menu") as HTMLButtonElement | null;
+const menuPanel = document.getElementById("side-panel");
+const menuBackdrop = document.getElementById("menu-backdrop");
+const menuClose = document.getElementById("btn-menu-close") as HTMLButtonElement | null;
+const mobileMenu: MobileMenuController | null = menuToggle && menuPanel && menuBackdrop && menuClose
+	? setupMobileMenu({ toggle: menuToggle, panel: menuPanel, backdrop: menuBackdrop, close: menuClose }, isCompactLayout)
+	: null;
+document.addEventListener("keydown", (event) => {
+	if (event.key === "Escape" && mobileMenu?.isOpen) mobileMenu.close();
+});
 
 // Elementos del menú online
 const createRoomBtn = document.getElementById(
@@ -368,14 +382,6 @@ function syncLobbyUi(roomState: RoomState): void {
 	syncStartGameControl();
 }
 
-/** On phones the controls sit below the board; bring the board back into view when play starts. */
-function showGameStage(): void {
-	const stage = document.querySelector(".right") as HTMLElement | null;
-	if (!stage) return;
-	if (Math.abs(stage.getBoundingClientRect().top) < 4) return;
-	stage.scrollIntoView({ block: "start", behavior: "smooth" });
-}
-
 /** Makes a new round obvious: the target pops, the board flashes, and the round number updates. */
 function announceNewTarget(roundId: number): void {
 	const roundBadge = document.getElementById("round-badge");
@@ -420,6 +426,7 @@ function resetOnlineRoom(): void {
 	challenge = null;
 	onlineMenuState = "menu";
 	showOnlinePanel(onlineEntryMenu);
+	mobileMenu?.open();
 	updateRankingPanel([]);
 	scene.setTarget(null);
 	scene.revealTarget(null);
@@ -521,7 +528,7 @@ function initOnlineMode(): void {
 		onlineState.deadlineMs = null;
 		scene.revealTarget(null);
 		panel.setCountdown(event.startsAtMs);
-		showGameStage();
+		mobileMenu?.close();
 		if (startGameBtn) startGameBtn.style.display = "none";
 		if (feedbackText) {
 			feedbackText.textContent = "La partida comienza en 3...";
@@ -563,7 +570,7 @@ function initOnlineMode(): void {
 			scene.setTarget(challenge);
 			scene.resetToInitial();
 			announceNewTarget(event.roundId);
-			showGameStage();
+			mobileMenu?.close();
 		}
 	});
 
@@ -920,6 +927,8 @@ function closeFinalRankingModal(): void {
 	if (modal) modal.classList.remove("visible");
 	isFinalRankingModalOpen = false;
 	syncStartGameControl();
+	// After the final ranking the next actions (start again or wait) live in the side panel.
+	if (onlineState.status === "FINAL") mobileMenu?.open();
 	if (
 		onlineState.status === "FINAL" &&
 		onlineState.playerId !== onlineState.hostId &&
@@ -964,3 +973,5 @@ setRover({ x: 0, y: 0, orientation: "N" });
 const targetEl = document.getElementById("target-coord");
 if (targetEl) targetEl.textContent = "...";
 initOnlineMode();
+// The first thing a player does is create or join a room, which lives in the side panel.
+mobileMenu?.open();

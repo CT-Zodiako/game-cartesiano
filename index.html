@@ -320,6 +320,29 @@
         align-items: flex-start;
       }
       .game-header .tap-hint { justify-self: end; }
+      .menu-toggle, .menu-close {
+        display: none;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        border: 2px solid var(--color-focus);
+        border-radius: 12px;
+        background: var(--color-surface-raised);
+        color: var(--color-text);
+        font-size: 1.4rem;
+        cursor: pointer;
+      }
+      .menu-close { float: right; margin: 0 0 8px 8px; }
+      .menu-toggle:focus-visible, .menu-close:focus-visible {
+        outline: 3px solid var(--color-focus);
+        outline-offset: 2px;
+      }
+      .menu-backdrop { display: none; }
+      .menu-backdrop[hidden] { display: none; }
+      @media (prefers-reduced-motion: reduce) {
+        .left { transition: none; }
+      }
       .time-label {
         font-size: 0.75em;
         color: #94a3b8;
@@ -1215,7 +1238,38 @@
       }
       @media (max-width: 900px) {
         .app { grid-template-columns: 1fr; }
-        .left { order: 2; max-height: none; overflow: visible; border-right: 0; border-top: 1px solid var(--color-border-subtle); }
+        /* Phones: the board owns the screen and the controls live in an off-canvas menu opened with ☰. */
+        .left {
+          position: fixed;
+          inset: 0 auto 0 0;
+          z-index: 900;
+          box-sizing: border-box;
+          width: min(88vw, 360px);
+          max-height: 100dvh;
+          padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+          background: var(--color-canvas);
+          border-right: 1px solid var(--color-border);
+          box-shadow: 8px 0 32px rgb(0 0 0 / 45%);
+          transform: translateX(-105%);
+          transition: transform 0.25s ease;
+          overflow-y: auto;
+        }
+        .left.is-open {
+          transform: none;
+        }
+        .menu-backdrop {
+          display: block;
+          position: fixed;
+          inset: 0;
+          z-index: 899;
+          background: var(--color-overlay);
+        }
+        .menu-toggle, .menu-close {
+          display: inline-grid;
+        }
+        .game-header { grid-template-columns: auto auto 1fr; column-gap: 10px; }
+        .game-header .target-display { justify-self: center; }
+        .game-header .tap-hint { grid-column: 1 / -1; justify-self: center; }
         .right {
           order: 1;
           box-sizing: border-box;
@@ -1250,7 +1304,8 @@
   </head>
   <body>
     <div class="app">
-      <section class="left">
+      <section class="left" id="side-panel">
+        <button id="btn-menu-close" class="menu-close" type="button" aria-label="Cerrar menú">✕</button>
         <button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false" aria-label="Usar tema claro">
         <span class="theme-toggle__track" aria-hidden="true">
           <span class="theme-toggle__icon theme-toggle__icon--moon">☾</span>
@@ -1365,6 +1420,7 @@
       <section class="right">
 <!-- Header con coordenada, objetivo y tiempo -->
       <div class="game-header">
+        <button id="btn-menu" class="menu-toggle" type="button" aria-controls="side-panel" aria-expanded="false" aria-label="Abrir menú">☰</button>
         <div class="time-display">
           <span class="time-label">Tiempo</span>
           <span class="time-value" data-role="countdown">—</span>
@@ -1391,6 +1447,7 @@
     </div>
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
   <script type="module" src="/src/main.ts"></script>
+    <div id="menu-backdrop" class="menu-backdrop" hidden></div>
     <div id="tutorial-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
       <div class="modal-content">
         <p id="tutorial-progress" class="tutorial-progress">1 de 5</p>
