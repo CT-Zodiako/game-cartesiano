@@ -126,7 +126,7 @@ test('GET /docente with the right credentials serves the private QR page', async
 	assert.equal(res.headers.get('x-robots-tag'), 'noindex, nofollow');
 	assert.equal(res.headers.get('referrer-policy'), 'no-referrer');
 	const body = await res.text();
-	assert.equal(body.match(/<svg[^>]*class="qr"/g)?.length, 5);
+	assert.equal(body.match(/<svg[^>]*class="qr"/g)?.length, 6);
 });
 
 test('GET /docente/ with a trailing slash is protected the same way', async () => {

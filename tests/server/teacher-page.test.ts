@@ -10,11 +10,12 @@ import {
 const basic = (user: string, password: string): string =>
 	`Basic ${Buffer.from(`${user}:${password}`).toString('base64')}`;
 
-test('lists the five published response links grouped by condition', () => {
+test('lists the game and the five published response links in class order', () => {
 	assert.deepEqual(
 		TEACHER_FORMS.map((form) => [form.group, form.title, form.url]),
 		[
 			['Grupo A (juego)', 'Pretest', 'https://docs.google.com/forms/d/e/1FAIpQLSeRF-4peYBEWtdTwAKVEsi188hiSC4jguypa2R8U7T9oBruAQ/viewform'],
+			['Grupo A (juego)', 'Jugar XY Arena', 'https://xyarena.xyz/'],
 			['Grupo A (juego)', 'Postest', 'https://docs.google.com/forms/d/e/1FAIpQLSdc650ngSTxcU2gOUiYXTaF0Sn6H5p2jc8UBemmfXyDet3MdQ/viewform'],
 			['Grupo A (juego)', 'Evaluación del juego (V3)', 'https://docs.google.com/forms/d/e/1FAIpQLSfZlSFAGHF46Sbcgh-j7v4u6y9bmlWufKUzk3-Ujg8a7MIO2w/viewform'],
 			['Grupo B (explicación)', 'Pretest', 'https://docs.google.com/forms/d/e/1FAIpQLScebzFz3eJpbB2F5RhRy4YtWDSDEFAHhACtnEigHqHkyvpEFA/viewform'],
@@ -51,7 +52,7 @@ test('renders one QR code, title, and link per form, grouped by condition', asyn
 test('every card offers a full-screen view for projectors and phones', async () => {
 	const html = await renderTeacherPage();
 	const buttons = [...html.matchAll(/<button type="button" class="fullscreen-btn" data-qr="(\d+)">Pantalla completa<\/button>/g)];
-	assert.deepEqual(buttons.map((match) => Number(match[1])), [0, 1, 2, 3, 4]);
+	assert.deepEqual(buttons.map((match) => Number(match[1])), [0, 1, 2, 3, 4, 5]);
 	assert.match(html, /<div id="qr-stage" class="qr-stage" role="dialog" aria-modal="true" aria-labelledby="qr-stage-title" hidden>/);
 	for (const id of ['qr-stage-title', 'qr-stage-code', 'qr-stage-prev', 'qr-stage-next', 'qr-stage-close', 'qr-stage-counter']) {
 		assert.ok(html.includes(`id="${id}"`), id);
@@ -67,3 +68,10 @@ test('every card offers a full-screen view for projectors and phones', async () 
 	// The title keeps clear of the close button on narrow phones.
 	assert.match(html, /\.qr-stage h2 \{[^}]*padding: 0 72px;/);
 });
+
+test('the game card links to the game, not to a form', async () => {
+	const html = await renderTeacherPage();
+	assert.match(html, /<a href="https:\/\/xyarena\.xyz\/" target="_blank" rel="noopener noreferrer">Abrir juego<\/a>/);
+	assert.equal(html.match(/>Abrir formulario</g)?.length, 5);
+});
+

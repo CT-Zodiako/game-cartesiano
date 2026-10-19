@@ -80,7 +80,7 @@ Esto ejecuta los tests de UI y servidor (`tests/ui/*.test.ts` y `tests/server/*.
 
 ## Página privada de encuestas (`/docente`)
 
-`/docente` muestra los códigos QR de los formularios publicados (pretest y postest de cada grupo, y la evaluación V3 del juego). Está protegida con usuario y contraseña del navegador (HTTP Basic) y sólo existe si el servidor tiene configurada la contraseña:
+`/docente` muestra los códigos QR del juego (`https://xyarena.xyz/`) y de los formularios publicados (pretest y postest de cada grupo, y la evaluación V3 del juego). Está protegida con usuario y contraseña del navegador (HTTP Basic) y sólo existe si el servidor tiene configurada la contraseña:
 
 | Variable | Uso |
 |---|---|

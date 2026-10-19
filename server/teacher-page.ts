@@ -8,13 +8,19 @@ export interface TeacherForm {
 	url: string;
 }
 
-/** Published Google Forms response links; each condition has its own forms so the group is known. */
+/** The game link plus the published Google Forms response links, in class order; each condition has its own forms. */
 export const TEACHER_FORMS: readonly TeacherForm[] = [
 	{
 		group: 'Grupo A (juego)',
 		title: 'Pretest',
 		description: 'Antes de jugar.',
 		url: 'https://docs.google.com/forms/d/e/1FAIpQLSeRF-4peYBEWtdTwAKVEsi188hiSC4jguypa2R8U7T9oBruAQ/viewform',
+	},
+	{
+		group: 'Grupo A (juego)',
+		title: 'Jugar XY Arena',
+		description: 'Entrar al juego y unirse con el código de sala.',
+		url: 'https://xyarena.xyz/',
 	},
 	{
 		group: 'Grupo A (juego)',
@@ -81,7 +87,7 @@ async function card(form: TeacherForm, index: number): Promise<string> {
 		<p>${escapeHtml(form.description)}</p>
 		${svg}
 		<button type="button" class="fullscreen-btn" data-qr="${index}">Pantalla completa</button>
-		<a href="${escapeHtml(form.url)}" target="_blank" rel="noopener noreferrer">Abrir formulario</a>
+		<a href="${escapeHtml(form.url)}" target="_blank" rel="noopener noreferrer">${form.url.includes('docs.google.com') ? 'Abrir formulario' : 'Abrir juego'}</a>
 	</article>`;
 }
 
