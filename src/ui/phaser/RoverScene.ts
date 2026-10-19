@@ -14,6 +14,7 @@ interface BoardPalette {
   path: number;
   marker: number;
   markerOutline: number;
+  reveal: number;
 }
 
 export const BOARD_PALETTES: Record<BoardTheme, BoardPalette> = {
@@ -26,6 +27,7 @@ export const BOARD_PALETTES: Record<BoardTheme, BoardPalette> = {
     path: 0xff00d4,
     marker: 0x16e7ff,
     markerOutline: 0xffffff,
+    reveal: 0xfacc15,
   },
   light: {
     background: 0xeef7ff,
@@ -36,6 +38,7 @@ export const BOARD_PALETTES: Record<BoardTheme, BoardPalette> = {
     path: 0xc026d3,
     marker: 0x087ee8,
     markerOutline: 0x08133d,
+    reveal: 0xb45309,
   },
 };
 
@@ -45,6 +48,7 @@ export class RoverScene extends Phaser.Scene {
   private currentState: RoverState;
   private path: RoverState[];
   private targetState: { x: number; y: number } | null = null;
+  private revealedTarget: { x: number; y: number } | null = null;
   private axisTexts: Phaser.GameObjects.Text[] = [];
   private onCellSelected: ((cell: { x: number; y: number }) => void) | null = null;
   private onClaimSelected: ((cell: { x: number; y: number }) => void) | null = null;
@@ -140,6 +144,12 @@ export class RoverScene extends Phaser.Scene {
     this.drawAll();
   }
 
+  /** Draws the correct vertex as post-answer feedback; never call it during an active round. */
+  revealTarget(target: { x: number; y: number } | null): void {
+    this.revealedTarget = target ? { ...target } : null;
+    this.drawAll();
+  }
+
   setPlateau(plateau: Plateau): void {
     this.plateau = plateau;
   }
@@ -213,15 +223,15 @@ export class RoverScene extends Phaser.Scene {
       this.pathGfx.lineBetween(a.px, a.py, b.px, b.py);
     }
 
-    // Target marker (yellow circle with crosshair) - TEMPORARILY DISABLED
-    // if (this.targetState) {
-    //   const targetPos = cellToPixel(this.targetState.x, this.targetState.y, this.plateau, this.scale.width, this.scale.height, margin);
-    //   this.targetGfx.lineStyle(3, 0xfacc15, 1); // Yellow
-    //   this.targetGfx.strokeCircle(targetPos.px, targetPos.py, 18);
-    //   this.targetGfx.lineStyle(2, 0xfacc15, 0.8);
-    //   this.targetGfx.lineBetween(targetPos.px - 12, targetPos.py, targetPos.px + 12, targetPos.py);
-    //   this.targetGfx.lineBetween(targetPos.px, targetPos.py - 12, targetPos.px, targetPos.py + 12);
-    // }
+    // The round target is revealed only after answering: drawing it earlier gives the answer away.
+    if (this.revealedTarget) {
+      const targetPos = cellToPixel(this.revealedTarget.x, this.revealedTarget.y, this.plateau, this.scale.width, this.scale.height, margin);
+      this.targetGfx.lineStyle(3, palette.reveal, 1);
+      this.targetGfx.strokeCircle(targetPos.px, targetPos.py, 18);
+      this.targetGfx.lineStyle(2, palette.reveal, 0.8);
+      this.targetGfx.lineBetween(targetPos.px - 12, targetPos.py, targetPos.px + 12, targetPos.py);
+      this.targetGfx.lineBetween(targetPos.px, targetPos.py - 12, targetPos.px, targetPos.py + 12);
+    }
 
     // Current position: a fixed-size, high-contrast diamond remains crisp as the board scales.
     const pos = cellToPixel(this.currentState.x, this.currentState.y, this.plateau, this.scale.width, this.scale.height, margin);

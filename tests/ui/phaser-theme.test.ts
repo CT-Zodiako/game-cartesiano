@@ -5,8 +5,15 @@ class FakeGraphics {
 	readonly fillColors: number[] = [];
 	readonly lineColors: number[] = [];
 	readonly filledPoints: { x: number; y: number }[][] = [];
+	circles: { x: number; y: number }[] = [];
 
 	clear(): this {
+		this.circles = [];
+		return this;
+	}
+
+	strokeCircle(x: number, y: number): this {
+		this.circles.push({ x, y });
 		return this;
 	}
 
@@ -159,6 +166,24 @@ test("the board renders both palettes and redraws immediately when the theme cha
 		BOARD_PALETTES.light.axis,
 	]);
 	assert.ok(labels.some((label) => label.style.color === BOARD_PALETTES.light.axisLabel));
+});
+
+test("the round target stays hidden and is revealed on the board only after answering", () => {
+	const scene = new RoverScene();
+	scene.create();
+	const targetGraphics = graphics.at(-2)!;
+
+	scene.setTarget({ x: 2, y: 2 });
+	assert.deepEqual(targetGraphics.circles, []);
+
+	scene.revealTarget({ x: 2, y: 2 });
+	assert.deepEqual(targetGraphics.circles, [{ x: 268, y: 132 }]);
+
+	scene.setTheme("light");
+	assert.deepEqual(targetGraphics.circles, [{ x: 268, y: 132 }]);
+
+	scene.revealTarget(null);
+	assert.deepEqual(targetGraphics.circles, []);
 });
 
 function diamondCenter(points: { x: number; y: number }[]): { x: number; y: number } {

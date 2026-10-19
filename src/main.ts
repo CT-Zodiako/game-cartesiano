@@ -23,6 +23,7 @@ import type {
 	GameEndedEvent,
 } from "@infrastructure/ws/events.ts";
 import { getRoomErrorFeedback } from "@infrastructure/ws/room-feedback.ts";
+import { classifyMiss, explainMiss } from "@domain/feedback/index.ts";
 import { deriveWsUrl } from "@infrastructure/ws/url.ts";
 
 // ── Plateau config ─────────────────────────────────────────────────────────
@@ -205,9 +206,11 @@ function showClaimResult(
 	}
 	if (claimResultTimeout !== null) window.clearTimeout(claimResultTimeout);
 	const title = accepted ? "✅ Correcto" : "❌ Error";
+	const miss = target ? classifyMiss(selected, target) : null;
+	const hint = target && miss ? `<br><span class="claim-result-hint">${explainMiss(miss, target)}</span>` : "";
 	const detail = accepted
 		? `+${pointsEarned} puntos`
-		: `Elegiste (${selected.x}, ${selected.y})<br>Buscábamos ${target ? `(${target.x}, ${target.y})` : "otro vértice"}`;
+		: `Elegiste (${selected.x}, ${selected.y})<br>Buscábamos ${target ? `(${target.x}, ${target.y})` : "otro vértice"}${hint}`;
 	overlay.innerHTML = `<div class="claim-result-card ${accepted ? "is-correct" : "is-error"}">
 		<h2 class="claim-result-title">${title}</h2>
 		<p class="claim-result-detail">${detail}</p>
@@ -215,7 +218,7 @@ function showClaimResult(
 	overlay.classList.add("visible");
 	claimResultTimeout = window.setTimeout(() => {
 		overlay?.classList.remove("visible");
-	}, 2000);
+	}, accepted ? 2000 : 4000);
 }
 
 function hideClaimResult(): void {
@@ -348,6 +351,7 @@ function resetOnlineRoom(): void {
 	showOnlinePanel(onlineEntryMenu);
 	updateRankingPanel([]);
 	scene.setTarget(null);
+	scene.revealTarget(null);
 	const targetEl = document.getElementById("target-coord");
 	if (targetEl) targetEl.textContent = "...";
 	const gameContainer = document.getElementById("game-container");
@@ -418,6 +422,7 @@ function initOnlineMode(): void {
 		hideClaimResult();
 		onlineState.countdownStartsAtMs = event.startsAtMs;
 		onlineState.deadlineMs = null;
+		scene.revealTarget(null);
 		panel.setCountdown(event.startsAtMs);
 		if (startGameBtn) startGameBtn.style.display = "none";
 		if (feedbackText) {
@@ -439,6 +444,7 @@ function initOnlineMode(): void {
 		onlineState.deadlineMs = event.deadlineMs;
 		panel.setCountdown(event.deadlineMs);
 		panel.setLateAlert("");
+		scene.revealTarget(null);
 		scene.unlockClaim();
 		if (feedbackText?.textContent === "La partida comienza en 3...") {
 			feedbackText.textContent = "";
@@ -459,6 +465,7 @@ function initOnlineMode(): void {
 	handleClaimAck(ws, (event) => {
 		const accepted = event.status === "ACCEPTED";
 		showClaimResult(accepted, event.pointsEarned, selectedPosition, challenge);
+		if (event.reason !== "ROUND_NOT_ACTIVE") scene.revealTarget(challenge);
 		sounds.play(accepted ? "correct"
 			: event.reason === "TOO_LATE" ? "timeout" : "wrong");
 		if (event.status === "ACCEPTED") {
@@ -484,6 +491,7 @@ function initOnlineMode(): void {
 	handleLateAlert(ws, (event) => {
 		sounds.play("timeout");
 		panel.setLateAlert(event.message || "Llegaste tarde.");
+		scene.revealTarget(challenge);
 	});
 
 	handleRankingUpdated(ws, (ranking: RankingEntry[]) => {

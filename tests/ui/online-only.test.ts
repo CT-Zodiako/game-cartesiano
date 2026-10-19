@@ -124,7 +124,7 @@ test("claim results appear as an animated friendly status card", () => {
 	assert.doesNotMatch(indexHtml, /Tu elección|id="selection-display"/);
 	assert.match(indexHtml, /\.claim-result-overlay\s*\{[^}]*position: fixed;[^}]*pointer-events: none;/);
 	assert.match(indexHtml, /\.claim-result-card\s*\{[^}]*animation: claim-result-pop 420ms/);
-	assert.match(mainSource, /window\.setTimeout\(\(\) =>[\s\S]*?\}, 2000\);/);
+	assert.match(mainSource, /window\.setTimeout\(\(\) =>[\s\S]*?\}, accepted \? 2000 : 4000\);/);
 	assert.match(mainSource, /function hideClaimResult\(\): void \{/);
 	assert.match(mainSource, /onlineState\.status = "COUNTDOWN";\s*hideClaimResult\(\);/);
 	assert.match(mainSource, /onlineState\.status = "ROUND_ACTIVE";\s*hideClaimResult\(\);/);
@@ -136,6 +136,26 @@ test("claim results appear as an animated friendly status card", () => {
 	assert.match(mainSource, /Elegiste \(\$\{selected\.x\}, \$\{selected\.y\}\)<br>Buscábamos/);
 	assert.match(mainSource, /const title = accepted \? "✅ Correcto" : "❌ Error";/);
 	assert.match(mainSource, /window\.setTimeout\(\(\) =>/);
+});
+
+test("wrong answers explain the mistake and the board reveals the target only after answering", () => {
+	assert.match(mainSource, /const miss = target \? classifyMiss\(selected, target\) : null;/);
+	assert.match(mainSource, /<span class="claim-result-hint">\$\{explainMiss\(miss, target\)\}<\/span>/);
+	assert.match(indexHtml, /\.claim-result-hint\s*\{/);
+
+	const roundStartedSource = mainSource.slice(
+		mainSource.indexOf("handleRoundStarted(ws"),
+		mainSource.indexOf("handleClaimAck(ws"),
+	);
+	assert.match(roundStartedSource, /scene\.revealTarget\(null\);/);
+	assert.doesNotMatch(roundStartedSource, /scene\.revealTarget\(challenge\)/);
+
+	const claimAckSource = mainSource.slice(
+		mainSource.indexOf("handleClaimAck(ws"),
+		mainSource.indexOf("handleRankingUpdated(ws"),
+	);
+	assert.match(claimAckSource, /if \(event\.reason !== "ROUND_NOT_ACTIVE"\) scene\.revealTarget\(challenge\);/);
+	assert.match(claimAckSource, /panel\.setLateAlert\([^)]*\);\s*scene\.revealTarget\(challenge\);/);
 });
 
 test("the browser boot always initializes multiplayer without an offline branch", () => {
