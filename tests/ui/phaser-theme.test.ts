@@ -248,6 +248,26 @@ test("quadrant names sit between vertices so they never cover a selectable point
 	assert.equal(offsetY % 1, 0.5);
 });
 
+test("narrow phone boards use a smaller margin so the grid fills more of the screen", () => {
+	const scene = new RoverScene();
+	scene.create();
+	const fakeScale = scene.scale as unknown as { width: number; height: number; resizeListener: (() => void) | null };
+	fakeScale.width = 360;
+	fakeScale.height = 360;
+	fakeScale.resizeListener?.();
+
+	const selected: { x: number; y: number }[] = [];
+	scene.setCellSelectedCallback((cell) => selected.push(cell));
+	// 22px margin on a 5x5 board: x = 5 sits at 360 - 22 = 338.
+	zones.at(-1)!.pointerDown(338, 22);
+	assert.deepEqual(selected, [{ x: 5, y: 5 }]);
+
+	labels.length = 0;
+	scene.setTheme("dark");
+	const yAxisLetter = labels.find((label) => label.text === "Y")!;
+	assert.ok(yAxisLetter.y >= 0);
+});
+
 function diamondCenter(points: { x: number; y: number }[]): { x: number; y: number } {
 	return {
 		x: points.reduce((sum, point) => sum + point.x, 0) / points.length,

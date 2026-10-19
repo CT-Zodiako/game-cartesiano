@@ -2,6 +2,9 @@ import type { Plateau, RoverState } from '@domain/rover/types.js';
 import { cellToPixel, cellCenter, pixelToCell } from './board.ts';
 
 const DEFAULT_MARGIN = 30;
+// Narrow phone canvases trade margin for larger cells; drawing and hit testing must share this value.
+const NARROW_BOARD_WIDTH = 400;
+const NARROW_MARGIN = 22;
 
 export type BoardTheme = 'dark' | 'light';
 
@@ -89,7 +92,7 @@ export class RoverScene extends Phaser.Scene {
         this.plateau,
         this.scale.width,
         this.scale.height,
-        DEFAULT_MARGIN,
+        this.boardMargin(),
       );
       if (!cell) return;
 
@@ -160,6 +163,10 @@ export class RoverScene extends Phaser.Scene {
     this.plateau = plateau;
   }
 
+  private boardMargin(): number {
+    return this.scale.width < NARROW_BOARD_WIDTH ? NARROW_MARGIN : DEFAULT_MARGIN;
+  }
+
   private drawAll(): void {
     if (!this.gfx) return;
     this.gfx.clear();
@@ -172,7 +179,7 @@ export class RoverScene extends Phaser.Scene {
     this.axisTexts = [];
 
     const palette = BOARD_PALETTES[this.theme];
-    const margin = DEFAULT_MARGIN;
+    const margin = this.boardMargin();
     const w = this.scale.width - margin * 2;
     const h = this.scale.height - margin * 2;
     const stepX = this.plateau.xMax > 0 ? w / (this.plateau.xMax * 2) : w;
@@ -219,7 +226,7 @@ export class RoverScene extends Phaser.Scene {
     // Axis labels
     this.axisTexts.push(
       this.add.text(margin + w + 12, centerY - 10, 'X', { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: palette.axisLabel, fontStyle: 'bold', resolution: 2 }),
-      this.add.text(centerX + 10, margin - 28, 'Y', { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: palette.axisLabel, fontStyle: 'bold', resolution: 2 }),
+      this.add.text(centerX + 10, Math.max(0, margin - 28), 'Y', { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: palette.axisLabel, fontStyle: 'bold', resolution: 2 }),
     );
 
     // Quadrant names sit at a cell center (half a step off the grid) so they never cover a selectable vertex.

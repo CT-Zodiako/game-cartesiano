@@ -205,7 +205,7 @@ const syncMobileBoardConfig = (): void => {
 	if (!configMobileBoard || !configMaxXy) return;
 	if (configMobileBoard.checked) {
 		configMaxXy.dataset.previousValue = configMaxXy.value;
-		configMaxXy.value = "6";
+		configMaxXy.value = "4";
 		return;
 	}
 	configMaxXy.value = configMaxXy.dataset.previousValue || "6";
@@ -303,6 +303,7 @@ const onlineState: OnlineState = {
 	ranking: [],
 };
 let isFinalRankingModalOpen = false;
+let totalRounds = 0;
 let snapshotRoomId: string | null = null;
 let connectedPlayerIds = new Set<string>();
 const urgentSecondsPlayed = new Set<number>();
@@ -333,6 +334,7 @@ function syncLobbyUi(roomState: RoomState): void {
 	onlineState.hostId = roomState.hostId;
 	onlineState.status = roomState.status;
 	onlineState.currentRound = roomState.currentRound;
+	totalRounds = roomState.config?.rounds ?? 0;
 	onlineState.countdownStartsAtMs = roomState.countdownStartsAtMs;
 	onlineState.deadlineMs = roomState.roundDeadlineMs;
 	const self = (roomState.players ?? []).find(
@@ -364,6 +366,29 @@ function syncLobbyUi(roomState: RoomState): void {
 
 	// Mostrar u ocultar botón de iniciar partida según si es host.
 	syncStartGameControl();
+}
+
+/** On phones the controls sit below the board; bring the board back into view when play starts. */
+function showGameStage(): void {
+	const stage = document.querySelector(".right") as HTMLElement | null;
+	if (!stage) return;
+	if (Math.abs(stage.getBoundingClientRect().top) < 4) return;
+	stage.scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
+/** Makes a new round obvious: the target pops, the board flashes, and the round number updates. */
+function announceNewTarget(roundId: number): void {
+	const roundBadge = document.getElementById("round-badge");
+	if (roundBadge) roundBadge.textContent = `Ronda ${roundId}${totalRounds ? ` de ${totalRounds}` : ""}`;
+	const targetDisplay = document.querySelector(".target-display") as HTMLElement | null;
+	const gameContainer = document.getElementById("game-container");
+	for (const [element, className] of [[targetDisplay, "target-changed"], [gameContainer, "round-flash"]] as const) {
+		element?.classList.remove(className);
+	}
+	// Force a reflow so the animation restarts even when two rounds share the same coordinate.
+	if (targetDisplay) void targetDisplay.offsetWidth;
+	targetDisplay?.classList.add("target-changed");
+	gameContainer?.classList.add("round-flash");
 }
 
 function setConnectionStatus(message: string, isError = false): void {
@@ -400,6 +425,8 @@ function resetOnlineRoom(): void {
 	scene.revealTarget(null);
 	const targetEl = document.getElementById("target-coord");
 	if (targetEl) targetEl.textContent = "...";
+	const roundBadge = document.getElementById("round-badge");
+	if (roundBadge) roundBadge.textContent = "";
 	const gameContainer = document.getElementById("game-container");
 	if (gameContainer) {
 		gameContainer.classList.add("dimmed");
@@ -494,6 +521,7 @@ function initOnlineMode(): void {
 		onlineState.deadlineMs = null;
 		scene.revealTarget(null);
 		panel.setCountdown(event.startsAtMs);
+		showGameStage();
 		if (startGameBtn) startGameBtn.style.display = "none";
 		if (feedbackText) {
 			feedbackText.textContent = "La partida comienza en 3...";
@@ -533,6 +561,9 @@ function initOnlineMode(): void {
 			const targetEl = document.getElementById("target-coord");
 			if (targetEl) targetEl.textContent = `(${challenge.x}, ${challenge.y})`;
 			scene.setTarget(challenge);
+			scene.resetToInitial();
+			announceNewTarget(event.roundId);
+			showGameStage();
 		}
 	});
 
@@ -638,7 +669,7 @@ function initOnlineMode(): void {
 		const rounds = parseInt(configRounds?.value || "3");
 		const seconds = parseInt(configSeconds?.value || "20");
 		const maxXy = configMobileBoard?.checked
-			? 6
+			? 4
 			: parseInt(configMaxXy?.value || "6");
 		const config = {
 			maxPlayers,

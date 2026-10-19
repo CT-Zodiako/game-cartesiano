@@ -54,7 +54,7 @@ test("the host can select a reduced mobile coordinate range in room configuratio
 	);
 	assert.match(configuration, /<label for="config-mobile-board">/);
 	assert.match(configuration, /<input id="config-mobile-board" type="checkbox" role="switch" \/>/);
-	assert.match(configuration, /Tablero móvil: rango reducido ±6 \(de -6 a 6\) para mayor precisión táctil\./);
+	assert.match(configuration, /Tablero móvil: rango reducido ±4 \(de -4 a 4\) para casillas más grandes en celulares\./);
 	assert.match(configuration, /id="config-max-xy" type="number" value="6"/);
 });
 
@@ -84,7 +84,7 @@ test("mobile defaults follow screen size once without overriding the host choice
 	assert.match(mainSource, /const configMobileBoard = document\.getElementById\(\s*"config-mobile-board",?\s*\) as HTMLInputElement \| null;/);
 	assert.match(mainSource, /configMobileBoard\.checked = window\.matchMedia\("\(max-width: 900px\)"\)\.matches;/);
 	assert.equal(mainSource.match(/configMobileBoard\.checked\s*=/g)?.length, 1);
-	assert.match(mainSource, /configMaxXy\.value = "6";/);
+	assert.match(mainSource, /configMaxXy\.value = "4";/);
 	assert.match(mainSource, /configMobileBoard\?\.addEventListener\("change", syncMobileBoardConfig\);/);
 });
 
@@ -93,7 +93,7 @@ test("room creation applies mobile bounds or preserves the configured symmetric 
 		mainSource.indexOf('confirmCreateBtn?.addEventListener("click"'),
 		mainSource.indexOf('confirmJoinBtn?.addEventListener("click"'),
 	);
-	assert.match(createSource, /const maxXy = configMobileBoard\?\.checked\s*\? 6\s*: parseInt\(configMaxXy\?\.value \|\| "6"\);/);
+	assert.match(createSource, /const maxXy = configMobileBoard\?\.checked\s*\? 4\s*: parseInt\(configMaxXy\?\.value \|\| "6"\);/);
 	assert.match(createSource, /maxX: maxXy,\s*maxY: maxXy,/);
 	assert.match(createSource, /ws\.createRoom\(playerName, config\);/);
 });
@@ -195,6 +195,30 @@ test("the final ranking shows the player's own summary for the finished game", (
 	assert.match(mainSource, /renderPersonalSummary\(summarizeAnswers\(gameAnswers\)\);/);
 	assert.match(mainSource, /Aciertos: \$\{summary\.hits\} de \$\{summary\.total\} \(\$\{summary\.accuracy\}%\)/);
 	assert.match(indexHtml, /\.personal-summary\s*\{/);
+});
+
+test("a new round makes the coordinate change obvious and clears the previous selection", () => {
+	const roundStartedSource = mainSource.slice(
+		mainSource.indexOf("handleRoundStarted(ws"),
+		mainSource.indexOf("handleClaimAck(ws"),
+	);
+	assert.match(roundStartedSource, /scene\.resetToInitial\(\);/);
+	assert.match(roundStartedSource, /announceNewTarget\(event\.roundId\);/);
+	assert.match(roundStartedSource, /showGameStage\(\);/);
+	const countdownSource = mainSource.slice(
+		mainSource.indexOf("handleGameCountdown(ws"),
+		mainSource.indexOf("handleRoundStarted(ws"),
+	);
+	assert.match(countdownSource, /showGameStage\(\);/);
+	assert.match(mainSource, /function showGameStage\(\): void \{[\s\S]*?if \(Math\.abs\(stage\.getBoundingClientRect\(\)\.top\) < 4\) return;[\s\S]*?stage\.scrollIntoView\(\{ block: "start", behavior: "smooth" \}\);/);
+	assert.match(mainSource, /function announceNewTarget\(roundId: number\): void \{/);
+	assert.match(mainSource, /Ronda \$\{roundId\}\$\{totalRounds \? ` de \$\{totalRounds\}` : ""\}/);
+	assert.match(mainSource, /totalRounds = roomState\.config\?\.rounds \?\? 0;/);
+	assert.match(mainSource, /void targetDisplay\.offsetWidth;/);
+	assert.match(indexHtml, /<span class="round-badge" id="round-badge" aria-live="polite"><\/span>/);
+	assert.match(indexHtml, /\.target-display\.target-changed \.target-value\s*\{[^}]*animation: target-pop/);
+	assert.match(indexHtml, /#game-container\.round-flash\s*\{[^}]*animation: board-flash/);
+	assert.match(indexHtml, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.target-display\.target-changed \.target-value, #game-container\.round-flash \{ animation: none; \}/);
 });
 
 test("the browser boot always initializes multiplayer without an offline branch", () => {
