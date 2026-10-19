@@ -687,11 +687,30 @@
       }
 
       /* Guía "¿Cómo se juega?" */
+      .help-row {
+        display: flex;
+        gap: 8px;
+        margin: 0 0 8px;
+      }
+      .sound-toggle {
+        flex: 0 0 48px;
+        min-height: 44px;
+        border: 2px solid var(--color-border);
+        border-radius: 12px;
+        background: var(--color-surface-raised);
+        font-size: 1.2rem;
+        cursor: pointer;
+      }
+      .sound-toggle:focus-visible {
+        outline: 3px solid var(--color-focus);
+        outline-offset: 2px;
+      }
       .tutorial-btn {
         display: block;
+        flex: 1;
         width: 100%;
         min-height: 44px;
-        margin: 0 0 8px;
+        margin: 0;
         border: 2px solid var(--color-focus);
         border-radius: 12px;
         background: transparent;
@@ -1201,7 +1220,10 @@
           <img class="game-brand-logo" src="/assets/logo.png" alt="XY Arena" />
         </div>
         <p id="connection-status" class="connection-status" role="status">Conectando con la sala...</p>
-        <button id="btn-tutorial" class="tutorial-btn" type="button">¿Cómo se juega?</button>
+        <div class="help-row">
+          <button id="btn-tutorial" class="tutorial-btn" type="button">¿Cómo se juega?</button>
+          <button id="sound-toggle" class="sound-toggle" type="button" aria-pressed="false" aria-label="Silenciar sonidos">🔊</button>
+        </div>
 
         <!-- Menú de entrada online -->
           <div id="online-entry-menu" class="online-menu">

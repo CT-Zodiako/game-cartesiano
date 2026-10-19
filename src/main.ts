@@ -4,6 +4,7 @@ import { RoverScene } from "@ui/phaser/RoverScene.ts";
 import { createStatePanel } from "@ui/dom/statePanel.ts";
 import { setupThemeToggle } from "@ui/dom/theme.ts";
 import { setupTutorial } from "@ui/dom/tutorial.ts";
+import { setupSoundToggle } from "@ui/dom/sound-toggle.ts";
 import {
 	WSClient,
 	handleRoomSnapshot,
@@ -62,6 +63,9 @@ const sounds = new SoundManager();
 for (const gesture of ["pointerdown", "keydown"] as const) {
 	document.addEventListener(gesture, () => { void sounds.unlock(); }, { capture: true });
 }
+
+const soundToggle = document.getElementById("sound-toggle") as HTMLButtonElement | null;
+if (soundToggle) setupSoundToggle(soundToggle, window.localStorage, sounds);
 
 const scene = new RoverScene();
 const initialSize = boardSize();
