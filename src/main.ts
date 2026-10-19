@@ -22,7 +22,10 @@ import type {
 	RoundStartedEvent,
 	GameEndedEvent,
 } from "@infrastructure/ws/events.ts";
-import { getRoomErrorFeedback } from "@infrastructure/ws/room-feedback.ts";
+import {
+	getConnectionLostFeedback,
+	getRoomErrorFeedback,
+} from "@infrastructure/ws/room-feedback.ts";
 import { classifyMiss, explainMiss } from "@domain/feedback/index.ts";
 import { deriveWsUrl } from "@infrastructure/ws/url.ts";
 
@@ -358,6 +361,24 @@ function resetOnlineRoom(): void {
 	if (gameContainer) gameContainer.classList.add("dimmed");
 }
 
+/**
+ * A new socket is not part of the previous room, so a dropped connection must not leave a stale room on screen.
+ * Returns true when a room was left.
+ */
+function handleRoomConnectionLoss(): boolean {
+	if (!onlineState.roomId) return false;
+	const roomCode = onlineState.roomCode;
+	const playerName = playerNameInputCreate?.value?.trim() || playerNameInputJoin?.value?.trim() || "";
+	resetOnlineRoom();
+	if (roomCodeInputJoin && roomCode) roomCodeInputJoin.value = roomCode;
+	if (playerNameInputJoin && playerName) playerNameInputJoin.value = playerName;
+	if (feedbackText) {
+		feedbackText.textContent = `⚠️ ${getConnectionLostFeedback(roomCode)}`;
+		feedbackText.style.color = "#f87171";
+	}
+	return true;
+}
+
 function initOnlineMode(): void {
 	const wsUrl = deriveWsUrl(
 		window.location.protocol,
@@ -379,6 +400,7 @@ function initOnlineMode(): void {
 
 	ws.on("reconnecting", () => {
 		onlineState.connected = false;
+		handleRoomConnectionLoss();
 		setConnectionStatus("Conexión perdida. Reintentando...");
 	});
 
@@ -389,6 +411,7 @@ function initOnlineMode(): void {
 
 	ws.on("disconnected", () => {
 		onlineState.connected = false;
+		handleRoomConnectionLoss();
 		setConnectionStatus(
 			"No se pudo conectar. Presioná Crear o Unirse para reintentar.",
 			true,

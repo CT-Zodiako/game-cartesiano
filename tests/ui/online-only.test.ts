@@ -173,6 +173,20 @@ test("the online lobby visibly reports connecting and failed connection states",
 	assert.match(mainSource, /ws\.on\("disconnected"/);
 });
 
+test("a dropped connection leaves the stale room and pre-fills the code to rejoin", () => {
+	const lossSource = mainSource.slice(
+		mainSource.indexOf("function handleRoomConnectionLoss"),
+		mainSource.indexOf("function initOnlineMode"),
+	);
+	assert.match(lossSource, /if \(!onlineState\.roomId\) return false;/);
+	assert.match(lossSource, /const roomCode = onlineState\.roomCode;/);
+	assert.match(lossSource, /resetOnlineRoom\(\);/);
+	assert.match(lossSource, /roomCodeInputJoin\.value = roomCode;/);
+	assert.match(lossSource, /getConnectionLostFeedback\(roomCode\)/);
+	assert.match(mainSource, /ws\.on\("reconnecting", \(\) => \{[\s\S]*?handleRoomConnectionLoss\(\)/);
+	assert.match(mainSource, /ws\.on\("disconnected", \(\) => \{[\s\S]*?handleRoomConnectionLoss\(\)/);
+});
+
 test("host departure notifies the server before the lobby resets and explains the cancellation", () => {
 	assert.match(mainSource, /handleRoomClosed\(ws,/);
 	assert.match(mainSource, /ws\.leaveRoom\(onlineState\.roomId\);[\s\S]*resetOnlineRoom\(\);/);
