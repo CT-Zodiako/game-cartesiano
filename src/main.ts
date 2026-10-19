@@ -28,6 +28,11 @@ import {
 	getRoomErrorFeedback,
 } from "@infrastructure/ws/room-feedback.ts";
 import { classifyMiss, explainMiss } from "@domain/feedback/index.ts";
+import {
+	summarizeAnswers,
+	type AnswerRecord,
+	type AnswerSummary,
+} from "@domain/feedback/summary.ts";
 import { deriveWsUrl } from "@infrastructure/ws/url.ts";
 
 // ── Plateau config ─────────────────────────────────────────────────────────
@@ -212,6 +217,13 @@ const panel = createStatePanel(document);
 
 let challenge: { x: number; y: number } | null = null;
 let selectedPosition = { x: 0, y: 0 };
+// One record per round of the current game, used for the personal summary.
+let gameAnswers: AnswerRecord[] = [];
+
+function recordAnswer(selected: { x: number; y: number }): void {
+	const current = gameAnswers.at(-1);
+	if (current && current.selected === null) current.selected = { ...selected };
+}
 
 let claimResultTimeout: number | null = null;
 
@@ -469,6 +481,7 @@ function initOnlineMode(): void {
 		closeFinalRankingModal();
 		onlineState.status = "COUNTDOWN";
 		hideClaimResult();
+		gameAnswers = [];
 		onlineState.countdownStartsAtMs = event.startsAtMs;
 		onlineState.deadlineMs = null;
 		scene.revealTarget(null);
@@ -504,6 +517,7 @@ function initOnlineMode(): void {
 		if (gameContainer) gameContainer.classList.remove("dimmed");
 		if (event.target) {
 			challenge = event.target;
+			gameAnswers.push({ target: { ...event.target }, selected: null });
 			// Update target display in header
 			const targetEl = document.getElementById("target-coord");
 			if (targetEl) targetEl.textContent = `(${challenge.x}, ${challenge.y})`;
@@ -516,6 +530,7 @@ function initOnlineMode(): void {
 		const beaten = event.reason === "TOO_LATE";
 		showClaimResult(accepted, event.pointsEarned, selectedPosition, challenge, beaten);
 		if (event.reason !== "ROUND_NOT_ACTIVE") scene.revealTarget(challenge);
+		if (event.reason !== "ROUND_NOT_ACTIVE") recordAnswer(selectedPosition);
 		sounds.play(accepted || beaten ? "correct" : "wrong");
 		if (event.status === "ACCEPTED") {
 			feedbackText!.textContent = `✅ Correcto! +${event.pointsEarned} puntos`;
@@ -725,6 +740,7 @@ function showFinalRankingModal(ranking: RankingEntry[]): void {
       <div class="modal-content">
         <h2 class="modal-title">🏆 Fin de la Partida</h2>
         <div class="podium" id="podium"></div>
+        <div class="personal-summary" id="personal-summary" aria-live="polite"></div>
         <div class="ranking-list-container">
           <ul class="ranking-list" id="final-ranking-list"></ul>
         </div>
@@ -833,10 +849,22 @@ function showFinalRankingModal(ranking: RankingEntry[]): void {
 		}
 	}
 
+	renderPersonalSummary(summarizeAnswers(gameAnswers));
+
 	// Mostrar modal
 	isFinalRankingModalOpen = true;
 	syncStartGameControl();
 	modal.classList.add("visible");
+}
+
+function renderPersonalSummary(summary: AnswerSummary): void {
+	const summaryEl = document.getElementById("personal-summary");
+	if (!summaryEl) return;
+	summaryEl.innerHTML = summary.total === 0
+		? `<p class="summary-tip">${escapeHtml(summary.suggestion)}</p>`
+		: `<h3 class="summary-title">Tu resumen</h3>
+		<p class="summary-stats">Aciertos: ${summary.hits} de ${summary.total} (${summary.accuracy}%) · Errores: ${summary.misses} · Sin responder: ${summary.unanswered}</p>
+		<p class="summary-tip">💡 ${escapeHtml(summary.suggestion)}</p>`;
 }
 
 function closeFinalRankingModal(): void {

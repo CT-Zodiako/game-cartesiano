@@ -171,6 +171,29 @@ test("a correct answer beaten by a faster player is shown as correct, not as an 
 	assert.match(mainSource, /Alguien respondió antes\. \+0 puntos/);
 });
 
+test("the final ranking shows the player's own summary for the finished game", () => {
+	assert.match(mainSource, /let gameAnswers: AnswerRecord\[\] = \[\];/);
+	const countdownSource = mainSource.slice(
+		mainSource.indexOf("handleGameCountdown(ws"),
+		mainSource.indexOf("handleRoundStarted(ws"),
+	);
+	assert.match(countdownSource, /gameAnswers = \[\];/);
+	const roundStartedSource = mainSource.slice(
+		mainSource.indexOf("handleRoundStarted(ws"),
+		mainSource.indexOf("handleClaimAck(ws"),
+	);
+	assert.match(roundStartedSource, /gameAnswers\.push\(\{ target: \{ \.\.\.event\.target \}, selected: null \}\);/);
+	const claimAckSource = mainSource.slice(
+		mainSource.indexOf("handleClaimAck(ws"),
+		mainSource.indexOf("handleLateAlert(ws"),
+	);
+	assert.match(claimAckSource, /if \(event\.reason !== "ROUND_NOT_ACTIVE"\) recordAnswer\(selectedPosition\);/);
+	assert.match(mainSource, /<div class="personal-summary" id="personal-summary" aria-live="polite"><\/div>/);
+	assert.match(mainSource, /renderPersonalSummary\(summarizeAnswers\(gameAnswers\)\);/);
+	assert.match(mainSource, /Aciertos: \$\{summary\.hits\} de \$\{summary\.total\} \(\$\{summary\.accuracy\}%\)/);
+	assert.match(indexHtml, /\.personal-summary\s*\{/);
+});
+
 test("the browser boot always initializes multiplayer without an offline branch", () => {
 	assert.match(mainSource, /initOnlineMode\(\);\s*$/);
 	assert.doesNotMatch(

@@ -653,6 +653,20 @@
         border-color: #22d3ee;
       }
 
+      .personal-summary {
+        margin: 16px 0;
+        padding: 14px 16px;
+        border: 2px solid var(--color-focus);
+        border-radius: 16px;
+        background: color-mix(in srgb, var(--color-canvas) 70%, transparent);
+        color: var(--color-text);
+        text-align: center;
+      }
+      .personal-summary:empty { display: none; }
+      .summary-title { margin: 0 0 6px; font-size: 1.15em; }
+      .summary-stats { margin: 0 0 8px; font-weight: 700; }
+      .summary-tip { margin: 0; color: var(--color-text-muted); line-height: 1.4; }
+
       /* Botón cerrar modal */
       .modal-close-btn {
         display: block;
