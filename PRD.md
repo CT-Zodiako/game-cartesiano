@@ -15,9 +15,10 @@ La tabla de estado y los bugs de abajo son históricos. Estado verificado en est
 - El objetivo se revela en el tablero sólo después de responder; mostrarlo durante la ronda daría la respuesta.
 - Mejoras de aprendizaje basadas en la encuesta: guía inicial, colores por eje, pistas por tipo de error, resumen personal, control de sonido y recuperación ante pérdida de conexión (ver README).
 
+Decisión 2026-10-18: el juego se mantiene **sólo online**; no se agrega modo práctica individual (`tests/ui/online-only.test.ts`).
+
 Pendiente de decisión:
 
-- **Modo práctica individual**: hoy el juego es sólo online por decisión explícita (`tests/ui/online-only.test.ts`).
 - **Reconexión a la misma sala**: requiere un token de reconexión en el servidor (`reconnectToken` sigue sin implementar).
 
 ## Estado actual del proyecto
