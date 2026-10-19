@@ -103,11 +103,13 @@ const tutorialElements = {
 	close: document.getElementById("btn-tutorial-close") as HTMLButtonElement | null,
 	openButton: document.getElementById("btn-tutorial") as HTMLButtonElement | null,
 	scene: document.getElementById("tutorial-scene"),
+	dontShowRow: document.getElementById("tutorial-dont-show-row"),
+	dontShow: document.getElementById("tutorial-dont-show") as HTMLInputElement | null,
 };
-const { overlay, title, body, progress, prev, next, close, openButton, scene: tutorialScene } = tutorialElements;
-if (overlay && title && body && progress && prev && next && close && openButton && tutorialScene) {
+const { overlay, title, body, progress, prev, next, close, openButton, scene: tutorialScene, dontShowRow, dontShow } = tutorialElements;
+if (overlay && title && body && progress && prev && next && close && openButton && tutorialScene && dontShowRow && dontShow) {
 	const tutorial = setupTutorial(
-		{ overlay, title, body, progress, prev, next, close, openButton, scene: tutorialScene },
+		{ overlay, title, body, progress, prev, next, close, openButton, scene: tutorialScene, dontShowRow, dontShow },
 		window.localStorage,
 	);
 	document.addEventListener("keydown", (event) => {

@@ -1,7 +1,8 @@
 import { renderTutorialScene } from "./tutorial-scenes.ts";
 
-export const TUTORIAL_STORAGE_KEY = "xy-arena-tutorial-seen";
-/** Seconds each step stays on screen before Next unlocks during the mandatory first run. */
+/** Set only when the player marks "No volver a mostrar esta guía" before finishing. */
+export const TUTORIAL_STORAGE_KEY = "xy-arena-tutorial-hidden";
+/** Seconds each step stays on screen before Next unlocks. */
 export const TUTORIAL_STEP_WAIT_SECONDS = 5;
 
 export interface TutorialStep {
@@ -17,7 +18,7 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
 	{ title: "Cómo responder", body: "Contá X, después Y, y tocá el vértice. ¡No arrastres!" },
 ];
 
-type TutorialStorage = Pick<Storage, "getItem" | "setItem">;
+type TutorialStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 /** Runs a callback later and returns a function that cancels it. */
 export type TutorialScheduler = (callback: () => void, ms: number) => () => void;
@@ -41,13 +42,16 @@ export interface TutorialElements {
 	next: TutorialButton & TutorialText & { disabled: boolean };
 	close: TutorialButton & { hidden: boolean };
 	openButton: TutorialButton;
+	/** "No volver a mostrar esta guía" checkbox, shown only on the last step. */
+	dontShowRow: { hidden: boolean };
+	dontShow: { checked: boolean };
 }
 
 export interface TutorialController {
 	open(): void;
 	close(): void;
 	readonly isOpen: boolean;
-	/** False during the mandatory first run: the guide can only be finished. */
+	/** Always false: the guide can only be finished, never closed early. */
 	readonly canClose: boolean;
 }
 
@@ -56,7 +60,7 @@ const browserScheduler: TutorialScheduler = (callback, ms) => {
 	return () => globalThis.clearTimeout(id);
 };
 
-function hasSeenTutorial(storage: TutorialStorage): boolean {
+function isTutorialHidden(storage: TutorialStorage): boolean {
 	try {
 		return storage.getItem(TUTORIAL_STORAGE_KEY) === "1";
 	} catch {
@@ -64,9 +68,10 @@ function hasSeenTutorial(storage: TutorialStorage): boolean {
 	}
 }
 
-function markTutorialSeen(storage: TutorialStorage): void {
+function saveTutorialHidden(storage: TutorialStorage, hidden: boolean): void {
 	try {
-		storage.setItem(TUTORIAL_STORAGE_KEY, "1");
+		if (hidden) storage.setItem(TUTORIAL_STORAGE_KEY, "1");
+		else storage.removeItem(TUTORIAL_STORAGE_KEY);
 	} catch {
 		// The guide still works when browser storage is unavailable; it just reappears next visit.
 	}
@@ -79,7 +84,6 @@ export function setupTutorial(
 ): TutorialController {
 	let step = 0;
 	let isOpen = false;
-	let mandatory = false;
 	let remainingSeconds = 0;
 	let cancelCountdown: (() => void) | null = null;
 	const finishedSteps = new Set<number>();
@@ -117,8 +121,9 @@ export function setupTutorial(
 		elements.progress.textContent = `${step + 1} de ${TUTORIAL_STEPS.length}`;
 		elements.scene.innerHTML = renderTutorialScene(step);
 		elements.prev.disabled = step === 0;
-		elements.close.hidden = mandatory;
-		remainingSeconds = mandatory && !finishedSteps.has(step) ? TUTORIAL_STEP_WAIT_SECONDS : 0;
+		elements.close.hidden = true;
+		elements.dontShowRow.hidden = step !== lastStep;
+		remainingSeconds = finishedSteps.has(step) ? 0 : TUTORIAL_STEP_WAIT_SECONDS;
 		if (remainingSeconds > 0) cancelCountdown = schedule(tick, 1000);
 		renderNext();
 	};
@@ -126,16 +131,15 @@ export function setupTutorial(
 	const finish = (): void => {
 		stopCountdown();
 		isOpen = false;
-		mandatory = false;
 		elements.overlay.classList.remove("visible");
-		markTutorialSeen(storage);
+		saveTutorialHidden(storage, elements.dontShow.checked);
 		elements.openButton.focus();
 	};
 
 	const open = (): void => {
 		step = 0;
 		isOpen = true;
-		mandatory = !hasSeenTutorial(storage);
+		elements.dontShow.checked = isTutorialHidden(storage);
 		finishedSteps.clear();
 		render();
 		elements.overlay.classList.add("visible");
@@ -143,8 +147,7 @@ export function setupTutorial(
 	};
 
 	const close = (): void => {
-		if (!isOpen || mandatory) return;
-		finish();
+		// The guide is mandatory: it ends only through "¡A jugar!" on the last step.
 	};
 
 	elements.openButton.addEventListener("click", open);
@@ -164,7 +167,7 @@ export function setupTutorial(
 		render();
 	});
 
-	if (!hasSeenTutorial(storage)) open();
+	if (!isTutorialHidden(storage)) open();
 
 	return {
 		open,
@@ -173,7 +176,7 @@ export function setupTutorial(
 			return isOpen;
 		},
 		get canClose() {
-			return !mandatory;
+			return false;
 		},
 	};
 }

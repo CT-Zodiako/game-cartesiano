@@ -874,6 +874,19 @@
       @media (prefers-reduced-motion: reduce) {
         .tutorial-scene * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; animation-fill-mode: forwards !important; }
       }
+      .tutorial-dont-show {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        min-height: 44px;
+        margin-top: 6px;
+        color: var(--color-text-muted);
+        font-size: 1rem;
+        cursor: pointer;
+      }
+      .tutorial-dont-show[hidden] { display: none; }
+      .tutorial-dont-show input { width: 22px; height: 22px; accent-color: #4ade80; }
       .tutorial-actions {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -1535,6 +1548,10 @@
         <h2 id="tutorial-title" class="modal-title">El origen</h2>
         <div id="tutorial-scene" class="tutorial-scene" aria-hidden="true"></div>
         <p id="tutorial-body" class="tutorial-body"></p>
+        <label id="tutorial-dont-show-row" class="tutorial-dont-show" hidden>
+          <input id="tutorial-dont-show" type="checkbox" />
+          No volver a mostrar esta guía
+        </label>
         <div class="tutorial-actions">
           <button id="btn-tutorial-prev" class="modal-close-btn" type="button">Anterior</button>
           <button id="btn-tutorial-next" type="button">Siguiente</button>
